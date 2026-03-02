@@ -44,7 +44,7 @@ STAGE 1 (Incubation / Hours 1-16)
 ├── context/          # Company dossier (5 files)
 ├── specs/            # 7 discovery & spec documents  
 ├── src/agent/        # Prototype + MCP server + Kafka
-├── src/web-form/     # Embeddable HTML form
+├── web-form-nextjs/  # React 18 + Next.js 14 support form
 └── tests/            # 127 pytest tests
 
 STAGE 2 (Specialization / Hours 17-40)
@@ -80,7 +80,7 @@ STAGE 2 (Specialization / Hours 17-40)
 - prototype.py — AgentLoop with all 5 components
 - mcp_server.py — 5 MCP tools as REST API
 - kafka_broker.py — Kafka producer/consumer
-- web-form/index.html — Embeddable support form
+- web-form-nextjs/ — React 18 + Next.js 14 support form (TypeScript, Tailwind CSS)
 
 ### 4. Test Suite
 - 127 tests: MessageNormalizer, KnowledgeSearcher, ChannelFormatter, EscalationEngine, AgentLoop, SentimentAnalyzer, Performance
@@ -144,8 +144,7 @@ STAGE 2 (Specialization / Hours 17-40)
 |---------|--------|----------|
 | WhatsApp | ✅ LIVE | +1 555 145 8166 |
 | Gmail | ✅ LIVE | affanali.2006aa@gmail.com |
-| Web Form (HTML) | ✅ LIVE | src/web-form/index.html |
-| Web Form (Next.js) | ✅ LIVE | web-form-nextjs/ (React + TypeScript) |
+| Web Form (Next.js React) | ✅ LIVE | web-form-nextjs/ → http://localhost:3000 |
 | ngrok | ✅ LIVE | https://chloe-dianoetic-hoggishly.ngrok-free.dev |
 
 ## Performance

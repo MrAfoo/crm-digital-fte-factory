@@ -13,7 +13,7 @@ NovaDeskAI is an intelligent customer success agent that automates support ticke
 │                                                               │
 │  Customer Browser / iframe Embedding                         │
 │  ┌─────────────────────────────────────────────────────┐   │
-│  │        NovaDeskAI Web Form (index.html)             │   │
+│  │        NovaDeskAI Web Form (Next.js + React)         │   │
 │  │  • Real-time validation                             │   │
 │  │  • Support ticket submission                        │   │
 │  │  • Character counters, loading states               │   │
@@ -75,8 +75,8 @@ NovaDeskAI is an intelligent customer success agent that automates support ticke
    The API will be available at `http://localhost:8000`
 
 4. **Open the web form:**
-   - Standalone: Open `src/web-form/index.html` directly in your browser
-   - Or via local server: `http://localhost:8000/web-form/` (if serving static files)
+   - Next.js React Form: `cd web-form-nextjs && npm install && npm run dev`
+   - Open: `http://localhost:3000`
 
 ### First Steps
 
@@ -98,9 +98,10 @@ novadeskai/
 │   ├── agent/
 │   │   ├── __init__.py
 │   │   └── prototype.py          # (Optional) AI agent logic
-│   └── web-form/
-│       ├── index.html            # Self-contained support form
-│       └── README.md             # Form documentation
+├── web-form-nextjs/             # React 18 + Next.js 14 support form
+│   ├── app/                     # Next.js App Router
+│   ├── components/              # SupportForm.tsx, TicketStatus.tsx
+│   └── package.json
 ├── README.md                      # This file
 └── requirements.txt               # Python dependencies (optional)
 ```
@@ -356,35 +357,33 @@ python src/api/main.py
 
 ## Web Form Features
 
-The embeddable customer support form (`src/web-form/index.html`) includes:
+The React/Next.js customer support form (`web-form-nextjs/`) includes:
 
-- ✅ **Real-time Validation** - Fields validate as you type
+- ✅ **React 18 + Next.js 14** - Full TypeScript, App Router
+- ✅ **Real-time Validation** - Fields validate as you type with error messages
 - ✅ **Required Fields** - Full Name, Email, Subject, Channel, Description
 - ✅ **Character Counter** - Max 1000 characters on description
-- ✅ **Channel Options** - Web, Email, WhatsApp
+- ✅ **Visual Channel Selector** - 🌐 Web / 📧 Email / 💬 WhatsApp cards
 - ✅ **Loading States** - Spinner during submission
-- ✅ **Success Confirmation** - Shows ticket number (TKT-XXXX)
+- ✅ **Success Confirmation** - Shows ticket number (TKT-XXXX) in styled badge
 - ✅ **Error Handling** - Network error messages with retry
+- ✅ **Dark Glassmorphism UI** - Animated orbs, frosted glass card
 - ✅ **Responsive Design** - Mobile and desktop optimized
-- ✅ **Accessibility** - ARIA labels, keyboard navigation
-- ✅ **No Dependencies** - Pure HTML/CSS/JS (Google Fonts only)
-- ✅ **iframe Ready** - Post-message communication support
+- ✅ **Ticket Status Page** - `/ticket/[id]` dynamic route
 
 > **Note:** This project uses the **Meta WhatsApp Cloud API** (free) instead of Twilio.  
 > Twilio charges per message. Meta's Cloud API is free for the first 1,000 conversations/month.  
 > See: https://developers.facebook.com/docs/whatsapp/cloud-api
 
-**Embed in your website:**
-```html
-<iframe 
-  src="http://localhost:8000/web-form/" 
-  width="600" 
-  height="900" 
-  frameborder="0">
-</iframe>
+**Run the Next.js form:**
+```bash
+cd web-form-nextjs
+npm install
+npm run dev
+# → http://localhost:3000
 ```
 
-See `src/web-form/README.md` for detailed form documentation.
+See `web-form-nextjs/README.md` for detailed form documentation.
 
 ---
 
@@ -503,7 +502,7 @@ MIT License - See LICENSE file for details
 
 For issues, feature requests, or questions:
 
-1. Check existing documentation in `src/web-form/README.md`
+1. Check existing documentation in `web-form-nextjs/README.md`
 2. Review API endpoint specifications above
 3. Check troubleshooting section
 4. Create an issue with detailed reproduction steps
