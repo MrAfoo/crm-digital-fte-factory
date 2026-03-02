@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 
-// Type definitions
 type Channel = 'web' | 'email' | 'whatsapp';
 
 interface FormData {
@@ -25,437 +24,227 @@ interface ApiError {
   detail?: string;
 }
 
-// Constants
-const MAX_DESCRIPTION_LENGTH = 1000;
-const API_ENDPOINT = 'http://localhost:8000/api/tickets';
+const MAX_DESC = 1000;
+const API_URL = 'http://localhost:8000/api/tickets';
+
+const CHANNELS: { value: Channel; label: string; emoji: string }[] = [
+  { value: 'web',       label: 'Web',       emoji: '🌐' },
+  { value: 'email',     label: 'Email',     emoji: '📧' },
+  { value: 'whatsapp',  label: 'WhatsApp',  emoji: '💬' },
+];
 
 export default function SupportForm() {
-  // State management
-  const [formData, setFormData] = useState<FormData>({
-    fullName: '',
-    email: '',
-    subject: '',
-    channel: 'web',
-    description: '',
+  const [form, setForm] = useState<FormData>({
+    fullName: '', email: '', subject: '', channel: 'web', description: '',
   });
-
-  const [errors, setErrors] = useState<FormErrors>({});
-  const [isLoading, setIsLoading] = useState(false);
-  const [isSubmitted, setIsSubmitted] = useState(false);
-  const [ticketId, setTicketId] = useState<string>('');
-  const [submitError, setSubmitError] = useState<string>('');
+  const [errors, setErrors]       = useState<FormErrors>({});
+  const [loading, setLoading]     = useState(false);
+  const [ticketId, setTicketId]   = useState('');
+  const [apiError, setApiError]   = useState('');
   const [charCount, setCharCount] = useState(0);
 
-  // Validation functions
-  const validateEmail = (email: string): boolean => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
+  // ── Validation ───────────────────────────────────────────
+  const validate = (): boolean => {
+    const e: FormErrors = {};
+    if (!form.fullName.trim() || form.fullName.trim().length < 2)
+      e.fullName = 'Full name must be at least 2 characters';
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim()))
+      e.email = 'Please enter a valid email address';
+    if (!form.subject.trim() || form.subject.trim().length < 3)
+      e.subject = 'Subject must be at least 3 characters';
+    if (form.description.trim().length < 10)
+      e.description = 'Description must be at least 10 characters';
+    else if (form.description.length > MAX_DESC)
+      e.description = `Max ${MAX_DESC} characters`;
+    setErrors(e);
+    return Object.keys(e).length === 0;
   };
 
-  const validateForm = (): boolean => {
-    const newErrors: FormErrors = {};
+  const clearError = (field: keyof FormErrors) =>
+    setErrors(prev => ({ ...prev, [field]: undefined }));
 
-    if (!formData.fullName.trim()) {
-      newErrors.fullName = 'Full name is required';
-    } else if (formData.fullName.trim().length < 2) {
-      newErrors.fullName = 'Full name must be at least 2 characters';
-    }
-
-    if (!formData.email.trim()) {
-      newErrors.email = 'Email is required';
-    } else if (!validateEmail(formData.email)) {
-      newErrors.email = 'Please enter a valid email address';
-    }
-
-    if (!formData.subject.trim()) {
-      newErrors.subject = 'Subject is required';
-    } else if (formData.subject.trim().length < 3) {
-      newErrors.subject = 'Subject must be at least 3 characters';
-    }
-
-    if (!formData.description.trim()) {
-      newErrors.description = 'Description is required';
-    } else if (formData.description.trim().length < 10) {
-      newErrors.description = 'Description must be at least 10 characters';
-    } else if (formData.description.length > MAX_DESCRIPTION_LENGTH) {
-      newErrors.description = `Description cannot exceed ${MAX_DESCRIPTION_LENGTH} characters`;
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  // Event handlers
-  const handleInputChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
-  ) => {
+  // ── Handlers ─────────────────────────────────────────────
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-
-    // Clear error for this field when user starts typing
-    if (errors[name as keyof FormErrors]) {
-      setErrors((prev) => ({
-        ...prev,
-        [name]: undefined,
-      }));
-    }
+    setForm(prev => ({ ...prev, [name]: value }));
+    clearError(name as keyof FormErrors);
+    if (name === 'description') setCharCount(value.length);
   };
 
-  const handleChannelChange = (channel: Channel) => {
-    setFormData((prev) => ({
-      ...prev,
-      channel,
-    }));
-  };
-
-  const handleDescriptionChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const { value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      description: value,
-    }));
-    setCharCount(value.length);
-
-    // Clear error when user starts typing
-    if (errors.description) {
-      setErrors((prev) => ({
-        ...prev,
-        description: undefined,
-      }));
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (!validateForm()) {
-      return;
-    }
-
-    setIsLoading(true);
-    setSubmitError('');
-
+    if (!validate()) return;
+    setLoading(true);
+    setApiError('');
     try {
-      const response = await fetch(API_ENDPOINT, {
+      const res = await fetch(API_URL, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(formData),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: form.fullName,
+          email: form.email,
+          subject: form.subject,
+          channel: form.channel,
+          description: form.description,
+        }),
       });
-
-      if (!response.ok) {
-        const errorData: ApiError = await response.json().catch(() => ({
-          message: 'Failed to submit form',
-        }));
-        throw new Error(errorData.detail || errorData.message || 'Failed to submit form');
+      if (!res.ok) {
+        const err: ApiError = await res.json().catch(() => ({}));
+        throw new Error(err.detail || err.message || `Error ${res.status}`);
       }
-
-      const data = await response.json();
-
-      // API returns { ticket_id, estimated_response_time, ... }
+      const data = await res.json();
       const tid = data.ticket_id || data.ticketId || data.id;
-      if (tid) {
-        setTicketId(tid);
-        setIsSubmitted(true);
-      } else {
-        throw new Error(data.detail || data.message || 'Failed to create support ticket');
-      }
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : 'An unexpected error occurred';
-      setSubmitError(errorMessage);
+      if (tid) { setTicketId(tid); }
+      else throw new Error(data.detail || 'Could not create ticket');
+    } catch (err) {
+      setApiError(err instanceof Error ? err.message : 'Something went wrong');
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
-  };
-
-  const handleRetry = () => {
-    setSubmitError('');
-    setIsLoading(false);
   };
 
   const handleReset = () => {
-    setFormData({
-      fullName: '',
-      email: '',
-      subject: '',
-      channel: 'web',
-      description: '',
-    });
-    setErrors({});
-    setIsSubmitted(false);
-    setTicketId('');
-    setSubmitError('');
-    setCharCount(0);
+    setForm({ fullName: '', email: '', subject: '', channel: 'web', description: '' });
+    setErrors({}); setTicketId(''); setApiError(''); setCharCount(0);
   };
 
-  // Success state
-  if (isSubmitted && ticketId) {
-    return (
-      <div className="glass rounded-2xl p-8 md:p-12 animate-slide-up">
-        <div className="text-center">
-          <div className="flex justify-center mb-6">
-            <div className="w-16 h-16 bg-gradient-to-br from-nova-primary to-nova-accent rounded-full flex items-center justify-center">
-              <svg
-                className="w-8 h-8 text-white"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M5 13l4 4L19 7"
-                />
-              </svg>
-            </div>
-          </div>
-          <h2 className="text-3xl font-bold mb-4 text-white">Success!</h2>
-          <p className="text-gray-300 mb-6">
-            Your support ticket has been created successfully.
-          </p>
-          <div className="bg-nova-dark bg-opacity-50 rounded-lg p-6 mb-8 border border-nova-primary border-opacity-30">
-            <p className="text-sm text-gray-400 mb-2">Your Ticket ID</p>
-            <p className="text-2xl font-mono font-bold text-nova-primary">{ticketId}</p>
-            <p className="text-xs text-gray-400 mt-3">
-              Keep this ID for your records. You can use it to check your ticket status.
-            </p>
-          </div>
-          <p className="text-gray-400 mb-6">
-            We&apos;ll review your request and get back to you shortly via {formData.channel}.
-          </p>
-          <button
-            onClick={handleReset}
-            className="w-full bg-gradient-to-r from-nova-primary to-nova-accent hover:shadow-lg hover:shadow-nova-primary/50 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-300 transform hover:scale-105"
-          >
-            Submit Another Ticket
-          </button>
-        </div>
-      </div>
-    );
-  }
+  // ── Success state ─────────────────────────────────────────
+  if (ticketId) return (
+    <div className="glass rounded-2xl p-8 md:p-12 animate-slide-up text-center">
+      <div style={{
+        width: 72, height: 72, borderRadius: '50%', margin: '0 auto 20px',
+        background: 'linear-gradient(135deg, #6C63FF, #f43f5e)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32,
+      }}>✅</div>
+      <h2 style={{ fontSize: 28, fontWeight: 800, color: '#fff', marginBottom: 8 }}>
+        You&apos;re all set!
+      </h2>
+      <p style={{ color: 'rgba(255,255,255,0.5)', marginBottom: 8, fontSize: 14 }}>
+        Nova has received your request. Your ticket number is:
+      </p>
+      <div className="ticket-badge">{ticketId}</div>
+      <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13, marginBottom: 28 }}>
+        We&apos;ll reply via {form.channel} shortly. Avg response &lt; 2 min.
+      </p>
+      <button className="nova-btn" onClick={handleReset}>
+        Submit Another Ticket
+      </button>
+    </div>
+  );
 
-  // Error state
-  if (submitError) {
-    return (
-      <div className="glass rounded-2xl p-8 md:p-12 animate-slide-up">
-        <div className="text-center">
-          <div className="flex justify-center mb-6">
-            <div className="w-16 h-16 bg-nova-accent bg-opacity-20 rounded-full flex items-center justify-center">
-              <svg
-                className="w-8 h-8 text-nova-accent"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 8v4m0 4v.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                />
-              </svg>
-            </div>
-          </div>
-          <h2 className="text-2xl font-bold mb-4 text-white">Something went wrong</h2>
-          <p className="text-gray-300 mb-8">{submitError}</p>
-          <div className="flex gap-4">
-            <button
-              onClick={handleRetry}
-              className="flex-1 bg-gradient-to-r from-nova-primary to-nova-accent hover:shadow-lg hover:shadow-nova-primary/50 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-300"
-            >
-              Try Again
-            </button>
-            <button
-              onClick={handleReset}
-              className="flex-1 border border-nova-primary text-nova-primary hover:bg-nova-primary hover:bg-opacity-10 font-semibold py-3 px-6 rounded-lg transition-all duration-300"
-            >
-              Reset Form
-            </button>
-          </div>
-        </div>
+  // ── Error state ───────────────────────────────────────────
+  if (apiError) return (
+    <div className="glass rounded-2xl p-8 md:p-12 animate-slide-up text-center">
+      <div style={{
+        width: 72, height: 72, borderRadius: '50%', margin: '0 auto 20px',
+        background: 'rgba(244,63,94,0.15)', border: '2px solid rgba(244,63,94,0.3)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32,
+      }}>❌</div>
+      <h2 style={{ fontSize: 24, fontWeight: 700, color: '#fff', marginBottom: 8 }}>
+        Something went wrong
+      </h2>
+      <p style={{ color: 'rgba(255,255,255,0.5)', marginBottom: 28, fontSize: 14 }}>
+        {apiError}
+      </p>
+      <div style={{ display: 'flex', gap: 12 }}>
+        <button className="nova-btn" onClick={() => setApiError('')}>Try Again</button>
+        <button className="nova-btn" style={{ background: 'rgba(255,255,255,0.08)' }} onClick={handleReset}>Reset</button>
       </div>
-    );
-  }
+    </div>
+  );
 
-  // Form state
+  // ── Form state ────────────────────────────────────────────
   return (
-    <form onSubmit={handleSubmit} className="glass rounded-2xl p-8 md:p-12 animate-slide-up">
-      {/* Full Name Field */}
-      <div className="mb-6">
-        <label htmlFor="fullName" className="block text-sm font-semibold text-white mb-2">
-          Full Name <span className="text-nova-accent">*</span>
-        </label>
-        <input
-          type="text"
-          id="fullName"
-          name="fullName"
-          value={formData.fullName}
-          onChange={handleInputChange}
-          placeholder="John Doe"
-          className={`w-full px-4 py-3 rounded-lg bg-nova-dark bg-opacity-50 border-2 ${
-            errors.fullName ? 'border-nova-accent' : 'border-nova-primary border-opacity-30'
-          } text-white placeholder-gray-500 focus:border-nova-primary focus:bg-opacity-70 focus:shadow-lg focus:shadow-nova-primary/20`}
-          disabled={isLoading}
-        />
-        {errors.fullName && (
-          <p className="text-nova-accent text-xs mt-2 animate-slide-up">{errors.fullName}</p>
-        )}
+    <form onSubmit={handleSubmit} className="glass rounded-2xl p-8 md:p-10 animate-slide-up" noValidate>
+
+      {/* Name + Email row */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}
+           className="sm-stack">
+        <div>
+          <label className="nova-label">Full Name <span style={{ color: '#f43f5e' }}>*</span></label>
+          <input
+            name="fullName" type="text" value={form.fullName}
+            onChange={handleChange} placeholder="Jane Smith"
+            className={`nova-input ${errors.fullName ? 'error' : ''}`}
+            disabled={loading}
+          />
+          {errors.fullName && <div className="nova-error">⚠ {errors.fullName}</div>}
+        </div>
+        <div>
+          <label className="nova-label">Email <span style={{ color: '#f43f5e' }}>*</span></label>
+          <input
+            name="email" type="email" value={form.email}
+            onChange={handleChange} placeholder="you@company.com"
+            className={`nova-input ${errors.email ? 'error' : ''}`}
+            disabled={loading}
+          />
+          {errors.email && <div className="nova-error">⚠ {errors.email}</div>}
+        </div>
       </div>
 
-      {/* Email Field */}
-      <div className="mb-6">
-        <label htmlFor="email" className="block text-sm font-semibold text-white mb-2">
-          Email Address <span className="text-nova-accent">*</span>
-        </label>
+      {/* Subject */}
+      <div style={{ marginBottom: 20 }}>
+        <label className="nova-label">Subject <span style={{ color: '#f43f5e' }}>*</span></label>
         <input
-          type="email"
-          id="email"
-          name="email"
-          value={formData.email}
-          onChange={handleInputChange}
-          placeholder="john@example.com"
-          className={`w-full px-4 py-3 rounded-lg bg-nova-dark bg-opacity-50 border-2 ${
-            errors.email ? 'border-nova-accent' : 'border-nova-primary border-opacity-30'
-          } text-white placeholder-gray-500 focus:border-nova-primary focus:bg-opacity-70 focus:shadow-lg focus:shadow-nova-primary/20`}
-          disabled={isLoading}
+          name="subject" type="text" value={form.subject}
+          onChange={handleChange} placeholder="e.g., Cannot connect Gmail integration"
+          className={`nova-input ${errors.subject ? 'error' : ''}`}
+          disabled={loading}
         />
-        {errors.email && (
-          <p className="text-nova-accent text-xs mt-2 animate-slide-up">{errors.email}</p>
-        )}
+        {errors.subject && <div className="nova-error">⚠ {errors.subject}</div>}
       </div>
 
-      {/* Subject Field */}
-      <div className="mb-6">
-        <label htmlFor="subject" className="block text-sm font-semibold text-white mb-2">
-          Subject <span className="text-nova-accent">*</span>
-        </label>
-        <input
-          type="text"
-          id="subject"
-          name="subject"
-          value={formData.subject}
-          onChange={handleInputChange}
-          placeholder="e.g., Cannot login to my account"
-          className={`w-full px-4 py-3 rounded-lg bg-nova-dark bg-opacity-50 border-2 ${
-            errors.subject ? 'border-nova-accent' : 'border-nova-primary border-opacity-30'
-          } text-white placeholder-gray-500 focus:border-nova-primary focus:bg-opacity-70 focus:shadow-lg focus:shadow-nova-primary/20`}
-          disabled={isLoading}
-        />
-        {errors.subject && (
-          <p className="text-nova-accent text-xs mt-2 animate-slide-up">{errors.subject}</p>
-        )}
-      </div>
-
-      {/* Channel Selection */}
-      <div className="mb-6">
-        <label className="block text-sm font-semibold text-white mb-4">
-          Preferred Contact Channel <span className="text-nova-accent">*</span>
-        </label>
-        <div className="flex flex-col sm:flex-row gap-4">
-          {(['web', 'email', 'whatsapp'] as const).map((ch) => (
-            <label
-              key={ch}
-              className="flex items-center cursor-pointer group"
+      {/* Channel */}
+      <div style={{ marginBottom: 20 }}>
+        <label className="nova-label">Preferred Channel <span style={{ color: '#f43f5e' }}>*</span></label>
+        <div style={{ display: 'flex', gap: 12 }}>
+          {CHANNELS.map(ch => (
+            <button
+              key={ch.value} type="button"
+              className={`channel-card ${form.channel === ch.value ? 'selected' : ''}`}
+              onClick={() => setForm(prev => ({ ...prev, channel: ch.value }))}
+              disabled={loading}
             >
-              <input
-                type="radio"
-                name="channel"
-                value={ch}
-                checked={formData.channel === ch}
-                onChange={() => handleChannelChange(ch)}
-                disabled={isLoading}
-                className="w-4 h-4 cursor-pointer"
-              />
-              <span className="ml-3 text-gray-300 group-hover:text-nova-primary transition-colors">
-                {ch.charAt(0).toUpperCase() + ch.slice(1)}
-              </span>
-            </label>
+              <span style={{ fontSize: 24 }}>{ch.emoji}</span>
+              {ch.label}
+            </button>
           ))}
         </div>
       </div>
 
-      {/* Description Field */}
-      <div className="mb-6">
-        <div className="flex justify-between items-center mb-2">
-          <label htmlFor="description" className="block text-sm font-semibold text-white">
-            Issue Description <span className="text-nova-accent">*</span>
+      {/* Description */}
+      <div style={{ marginBottom: 24 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <label className="nova-label" style={{ marginBottom: 0 }}>
+            Issue Description <span style={{ color: '#f43f5e' }}>*</span>
           </label>
-          <span
-            className={`text-xs ${
-              charCount > MAX_DESCRIPTION_LENGTH * 0.9
-                ? 'text-nova-accent'
-                : 'text-gray-400'
-            }`}
-          >
-            {charCount}/{MAX_DESCRIPTION_LENGTH}
+          <span style={{ fontSize: 11, color: charCount > MAX_DESC * 0.9 ? '#f43f5e' : 'rgba(255,255,255,0.3)' }}>
+            {charCount}/{MAX_DESC}
           </span>
         </div>
         <textarea
-          id="description"
-          name="description"
-          value={formData.description}
-          onChange={handleDescriptionChange}
-          placeholder="Please describe your issue in detail..."
-          rows={5}
-          maxLength={MAX_DESCRIPTION_LENGTH}
-          className={`w-full px-4 py-3 rounded-lg bg-nova-dark bg-opacity-50 border-2 ${
-            errors.description ? 'border-nova-accent' : 'border-nova-primary border-opacity-30'
-          } text-white placeholder-gray-500 focus:border-nova-primary focus:bg-opacity-70 focus:shadow-lg focus:shadow-nova-primary/20 resize-none`}
-          disabled={isLoading}
+          name="description" value={form.description}
+          onChange={handleChange} rows={5}
+          placeholder="Please describe your issue in detail so Nova can help faster..."
+          className={`nova-input ${errors.description ? 'error' : ''}`}
+          style={{ resize: 'none' }}
+          disabled={loading}
         />
-        {errors.description && (
-          <p className="text-nova-accent text-xs mt-2 animate-slide-up">{errors.description}</p>
-        )}
+        {errors.description && <div className="nova-error">⚠ {errors.description}</div>}
       </div>
 
-      {/* Submit Button */}
-      <button
-        type="submit"
-        disabled={isLoading}
-        className="w-full bg-gradient-to-r from-nova-primary to-nova-accent hover:shadow-lg hover:shadow-nova-primary/50 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold py-3 px-6 rounded-lg transition-all duration-300 transform hover:scale-105 disabled:hover:scale-100 flex items-center justify-center gap-2"
-      >
-        {isLoading ? (
+      {/* Submit */}
+      <button type="submit" className="nova-btn" disabled={loading}>
+        {loading ? (
           <>
-            <svg className="w-5 h-5 spinner" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <circle
-                className="opacity-25"
-                cx="12"
-                cy="12"
-                r="10"
-                stroke="currentColor"
-                strokeWidth="4"
-              />
-              <path
-                className="opacity-75"
-                fill="currentColor"
-                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-              />
+            <svg className="spinner" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <circle cx="12" cy="12" r="10" strokeOpacity="0.25"/>
+              <path d="M12 2a10 10 0 0 1 10 10" strokeOpacity="0.75"/>
             </svg>
-            Submitting...
+            Sending to Nova…
           </>
         ) : (
-          <>
-            Submit Support Ticket
-            <svg
-              className="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M13 7l5 5m0 0l-5 5m5-5H6"
-              />
-            </svg>
-          </>
+          <>🚀 Submit Support Ticket</>
         )}
       </button>
     </form>
