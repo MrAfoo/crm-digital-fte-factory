@@ -112,6 +112,21 @@ STAGE 2 (Specialization / Hours 17-40)
 - 95 tests: test_agent.py, test_channels.py, test_e2e.py
 - **222 total tests across Stage 1 + Stage 2**
 
+### 10. Next.js React Web Form (web-form-nextjs/)
+- Full React 18 + Next.js 14 + TypeScript + Tailwind CSS
+- SupportForm.tsx — real-time validation, character counter, channel selector
+- TicketStatus.tsx — lookup ticket by ID with conversation history
+- Dynamic route: /ticket/[id] for ticket status page
+- Dark glassmorphism design, fully responsive
+- Run: `cd web-form-nextjs && npm install && npm run dev`
+
+### 11. Incident Response Runbook (docs/RUNBOOK.md)
+- 1,194 lines of operational documentation
+- P0–P3 severity levels, escalation matrix
+- 8 common incidents with step-by-step resolution
+- Diagnostic commands (kubectl, docker, curl)
+- Post-incident checklist + RCA template
+
 ## Key Design Decisions
 
 | Decision | Choice | Reason |
@@ -129,7 +144,8 @@ STAGE 2 (Specialization / Hours 17-40)
 |---------|--------|----------|
 | WhatsApp | ✅ LIVE | +1 555 145 8166 |
 | Gmail | ✅ LIVE | affanali.2006aa@gmail.com |
-| Web Form | ✅ LIVE | src/web-form/index.html |
+| Web Form (HTML) | ✅ LIVE | src/web-form/index.html |
+| Web Form (Next.js) | ✅ LIVE | web-form-nextjs/ (React + TypeScript) |
 | ngrok | ✅ LIVE | https://chloe-dianoetic-hoggishly.ngrok-free.dev |
 
 ## Performance
@@ -148,7 +164,7 @@ STAGE 2 (Specialization / Hours 17-40)
 
 ```powershell
 # One command to run everything:
-.\start.ps1
+.\\start.ps1
 
 # Or manually:
 $env:PYTHONPATH = "."
@@ -162,6 +178,12 @@ python -m pytest tests/ production/tests/ -q
 
 # Live demo:
 python setup/demo_runner.py
+
+# Next.js Web Form (React):
+cd web-form-nextjs
+npm install
+npm run dev
+# → Open http://localhost:3000
 ```
 
 ## Cost Analysis
