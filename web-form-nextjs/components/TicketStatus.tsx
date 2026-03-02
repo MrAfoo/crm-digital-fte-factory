@@ -44,7 +44,7 @@ const PRIORITY_COLORS: Record<string, string> = {
 };
 
 export default function TicketStatus({ initialTicketId = '' }: TicketStatusProps) {
-  const [ticketId, setTicketId] = useState<string>(initialTicketId);
+  const [, setTicketId] = useState<string>(initialTicketId);
   const [searchInput, setSearchInput] = useState<string>(initialTicketId);
   const [ticket, setTicket] = useState<Ticket | null>(null);
   const [isLoading, setIsLoading] = useState(false);

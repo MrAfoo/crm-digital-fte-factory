@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 
 // Type definitions
 type Channel = 'web' | 'email' | 'whatsapp';
@@ -20,15 +20,9 @@ interface FormErrors {
   description?: string;
 }
 
-interface SubmitResponse {
-  success: boolean;
-  ticketId?: string;
-  message?: string;
-  error?: string;
-}
-
 interface ApiError {
-  message: string;
+  message?: string;
+  detail?: string;
 }
 
 // Constants
@@ -157,16 +151,18 @@ export default function SupportForm() {
         const errorData: ApiError = await response.json().catch(() => ({
           message: 'Failed to submit form',
         }));
-        throw new Error(errorData.message || 'Failed to submit form');
+        throw new Error(errorData.detail || errorData.message || 'Failed to submit form');
       }
 
-      const data: SubmitResponse = await response.json();
+      const data = await response.json();
 
-      if (data.success && data.ticketId) {
-        setTicketId(data.ticketId);
+      // API returns { ticket_id, estimated_response_time, ... }
+      const tid = data.ticket_id || data.ticketId || data.id;
+      if (tid) {
+        setTicketId(tid);
         setIsSubmitted(true);
       } else {
-        throw new Error(data.message || 'Failed to create support ticket');
+        throw new Error(data.detail || data.message || 'Failed to create support ticket');
       }
     } catch (error) {
       const errorMessage =
