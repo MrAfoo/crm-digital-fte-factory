@@ -1,0 +1,174 @@
+version: '3.8'
+
+# NovaDeskAI Kafka Streaming Infrastructure with API Services
+# This compose file sets up:
+# - Zookeeper: Kafka coordination service
+# - Kafka: Message broker with auto topic creation
+# - Kafka-UI: Web UI for monitoring topics and messages
+# - Nova API: FastAPI backend on port 8000
+# - Nova MCP: Model Context Protocol server on port 8001
+
+services:
+  # =========================================================================
+  # ZOOKEEPER - Kafka coordination and metadata management
+  # =========================================================================
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: nova-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+      ZOOKEEPER_SERVER_ID: 1
+    ports:
+      - "2181:2181"
+    networks:
+      - nova-network
+    healthcheck:
+      test: [ "CMD", "echo", "ruok", "|", "nc", "localhost", "2181" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - zookeeper-data:/var/lib/zookeeper/data
+      - zookeeper-logs:/var/lib/zookeeper/log
+
+  # =========================================================================
+  # KAFKA - Event streaming platform
+  # Broker runs on PLAINTEXT_HOST://localhost:9092 (external)
+  # and PLAINTEXT://kafka:29092 (internal to containers)
+  # =========================================================================
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: nova-kafka
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    ports:
+      - "9092:9092"  # External broker port (host machine)
+      - "29092:29092" # Internal broker port (from containers)
+    networks:
+      - nova-network
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+      KAFKA_DELETE_TOPIC_ENABLE: 'true'
+      KAFKA_LOG_RETENTION_HOURS: 72
+      KAFKA_LOG_RETENTION_BYTES: -1
+    healthcheck:
+      test: [ "CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:29092" ]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+
+  # =========================================================================
+  # KAFKA-UI - Web interface for Kafka monitoring and management
+  # Access at http://localhost:8080
+  # =========================================================================
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: nova-kafka-ui
+    depends_on:
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    networks:
+      - nova-network
+    environment:
+      KAFKA_CLUSTERS_0_NAME: nova-cluster
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+      DYNAMIC_CONFIG_ENABLED: 'true'
+    profiles:
+      - debug
+
+  # =========================================================================
+  # NOVA-API - FastAPI backend service
+  # Processes HTTP requests and interacts with the agent
+  # Port 8000 on host machine
+  # =========================================================================
+  nova-api:
+    build:
+      context: ./src/api
+      dockerfile: Dockerfile
+    container_name: nova-api
+    depends_on:
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    networks:
+      - nova-network
+    environment:
+      GROQ_API_KEY: ${GROQ_API_KEY}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      KAFKA_CONSUMER_GROUP: nova-api-group
+      API_HOST: 0.0.0.0
+      API_PORT: 8000
+      LOG_LEVEL: INFO
+    volumes:
+      - ./context:/app/context:ro
+      - ./src/agent:/app/agent:ro
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/health" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # =========================================================================
+  # NOVA-MCP - Model Context Protocol server
+  # Provides LLM-compatible tools and endpoints
+  # Port 8001 on host machine
+  # =========================================================================
+  nova-mcp:
+    build:
+      context: ./src/agent
+      dockerfile: Dockerfile
+    container_name: nova-mcp
+    depends_on:
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8001:8001"
+    networks:
+      - nova-network
+    environment:
+      GROQ_API_KEY: ${GROQ_API_KEY}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      KAFKA_CONSUMER_GROUP: nova-mcp-group
+      MCP_PORT: 8001
+      LOG_LEVEL: INFO
+    volumes:
+      - ./context:/app/context:ro
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8001/health" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+# ============================================================================
+# NETWORKS
+# ============================================================================
+networks:
+  nova-network:
+    driver: bridge
+
+# ============================================================================
+# VOLUMES
+# ============================================================================
+volumes:
+  zookeeper-data:
+    driver: local
+  zookeeper-logs:
+    driver: local
+  kafka-data:
+    driver: local

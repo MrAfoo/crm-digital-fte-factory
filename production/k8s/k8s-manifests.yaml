@@ -1,0 +1,363 @@
+---
+# Namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: novadesk
+  labels:
+    app: novadesk
+
+---
+# ConfigMap (non-secret config)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: novadesk-config
+  namespace: novadesk
+data:
+  KAFKA_BOOTSTRAP_SERVERS: "kafka-service:9092"
+  API_HOST: "0.0.0.0"
+  API_PORT: "8000"
+  LOG_LEVEL: "INFO"
+  WHATSAPP_VERIFY_TOKEN: "novadesk_verify"
+  KAFKA_CONSUMER_GROUP: "nova-agent-group"
+
+---
+# Secret (sensitive values - base64 placeholders)
+apiVersion: v1
+kind: Secret
+metadata:
+  name: novadesk-secrets
+  namespace: novadesk
+type: Opaque
+stringData:
+  GROQ_API_KEY: "your-groq-api-key-here"
+  DATABASE_URL: "postgresql://nova:novasecret@postgres-service:5432/novadesk"
+  POSTGRES_PASSWORD: "novasecret"
+  WHATSAPP_TOKEN: "your-whatsapp-token-here"
+  WHATSAPP_PHONE_NUMBER_ID: "your-phone-number-id-here"
+
+---
+# PersistentVolumeClaim for PostgreSQL
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-pvc
+  namespace: novadesk
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+
+---
+# PostgreSQL Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  namespace: novadesk
+  labels:
+    app: postgres
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+      - name: postgres
+        image: pgvector/pgvector:pg16
+        ports:
+        - containerPort: 5432
+        env:
+        - name: POSTGRES_DB
+          value: "novadesk"
+        - name: POSTGRES_USER
+          value: "nova"
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: novadesk-secrets
+              key: POSTGRES_PASSWORD
+        volumeMounts:
+        - name: postgres-storage
+          mountPath: /var/lib/postgresql/data
+        livenessProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - nova
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - nova
+          initialDelaySeconds: 10
+          periodSeconds: 5
+      volumes:
+      - name: postgres-storage
+        persistentVolumeClaim:
+          claimName: postgres-pvc
+
+---
+# PostgreSQL Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-service
+  namespace: novadesk
+  labels:
+    app: postgres
+spec:
+  type: ClusterIP
+  ports:
+  - port: 5432
+    targetPort: 5432
+  selector:
+    app: postgres
+
+---
+# Zookeeper Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: zookeeper
+  namespace: novadesk
+  labels:
+    app: zookeeper
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: zookeeper
+  template:
+    metadata:
+      labels:
+        app: zookeeper
+    spec:
+      containers:
+      - name: zookeeper
+        image: confluentinc/cp-zookeeper:7.5.0
+        ports:
+        - containerPort: 2181
+        env:
+        - name: ZOOKEEPER_CLIENT_PORT
+          value: "2181"
+        - name: ZOOKEEPER_TICK_TIME
+          value: "2000"
+
+---
+# Zookeeper Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: zookeeper-service
+  namespace: novadesk
+  labels:
+    app: zookeeper
+spec:
+  type: ClusterIP
+  ports:
+  - port: 2181
+    targetPort: 2181
+  selector:
+    app: zookeeper
+
+---
+# Kafka Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kafka
+  namespace: novadesk
+  labels:
+    app: kafka
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kafka
+  template:
+    metadata:
+      labels:
+        app: kafka
+    spec:
+      containers:
+      - name: kafka
+        image: confluentinc/cp-kafka:7.5.0
+        ports:
+        - containerPort: 9092
+        env:
+        - name: KAFKA_BROKER_ID
+          value: "1"
+        - name: KAFKA_ZOOKEEPER_CONNECT
+          value: "zookeeper-service:2181"
+        - name: KAFKA_ADVERTISED_LISTENERS
+          value: "PLAINTEXT://kafka-service:9092"
+        - name: KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR
+          value: "1"
+        - name: KAFKA_AUTO_CREATE_TOPICS_ENABLE
+          value: "true"
+
+---
+# Kafka Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka-service
+  namespace: novadesk
+  labels:
+    app: kafka
+spec:
+  type: ClusterIP
+  ports:
+  - port: 9092
+    targetPort: 9092
+  selector:
+    app: kafka
+
+---
+# NovaDeskAI API Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nova-api
+  namespace: novadesk
+  labels:
+    app: nova-api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: nova-api
+  template:
+    metadata:
+      labels:
+        app: nova-api
+    spec:
+      containers:
+      - name: nova-api
+        image: novadesk-api:latest
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 8000
+        envFrom:
+        - configMapRef:
+            name: novadesk-config
+        - secretRef:
+            name: novadesk-secrets
+        resources:
+          requests:
+            cpu: 250m
+            memory: 512Mi
+          limits:
+            cpu: 500m
+            memory: 1Gi
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 20
+          periodSeconds: 5
+
+---
+# NovaDeskAI API Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: nova-api-service
+  namespace: novadesk
+  labels:
+    app: nova-api
+spec:
+  type: NodePort
+  ports:
+  - port: 8000
+    targetPort: 8000
+    nodePort: 30800
+  selector:
+    app: nova-api
+
+---
+# Message Processor Worker Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nova-worker
+  namespace: novadesk
+  labels:
+    app: nova-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nova-worker
+  template:
+    metadata:
+      labels:
+        app: nova-worker
+    spec:
+      containers:
+      - name: nova-worker
+        image: novadesk-api:latest
+        imagePullPolicy: Never
+        command:
+        - "python"
+        - "-m"
+        - "production.workers.message_processor"
+        envFrom:
+        - configMapRef:
+            name: novadesk-config
+        - secretRef:
+            name: novadesk-secrets
+        resources:
+          requests:
+            cpu: 250m
+            memory: 512Mi
+          limits:
+            cpu: 500m
+            memory: 1Gi
+
+---
+# HorizontalPodAutoscaler for API
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: nova-api-hpa
+  namespace: novadesk
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: nova-api
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80

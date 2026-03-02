@@ -1,0 +1,10 @@
+groq
+fastapi
+uvicorn
+python-dotenv
+pytest
+httpx
+pydantic
+confluent-kafka
+pytest-asyncio
+pytest-mock
