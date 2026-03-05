@@ -1,8 +1,13 @@
 # ============================================================
 #  NovaDeskAI - Full 5-Minute Demo Script
 #  Usage: .\demo.ps1
+#  Usage: .\demo.ps1 -ApiUrl http://localhost:8000
 #  Set $env:DEMO_NONINTERACTIVE = '1' to skip the ENTER prompt.
 # ============================================================
+
+param(
+    [string]$ApiUrl = 'http://localhost:8000'
+)
 
 $Host.UI.RawUI.WindowTitle = 'NovaDeskAI Demo'
 
@@ -69,56 +74,69 @@ else {
 }
 
 # ============================================================
-#  MINUTE 0:00 - docker-compose up -> all containers green
+#  MINUTE 0:00 - Verify stack is running (Docker or direct)
 # ============================================================
-Write-Step "MINUTE 0:00" "Starting Docker stack (Zookeeper + Kafka + Nova API + Nova MCP)"
+Write-Step "MINUTE 0:00" "Verifying NovaDeskAI stack is running"
 Write-Host ""
 
-# Kill any stale process on port 8000 first
-$stale = (netstat -ano 2>$null | Select-String ":8000 .*LISTENING") |
-    ForEach-Object { $_.ToString().Trim().Split()[-1] } | Select-Object -First 1
-if ($stale -match '^\d+$') {
-    Write-Info "Freeing port 8000 (PID $stale)..."
-    taskkill /PID $stale /F 2>$null | Out-Null
-    Start-Sleep -Seconds 1
-}
-
-Write-Info "Running: docker-compose up -d"
-docker-compose up -d
-if ($LASTEXITCODE -ne 0) {
-    Write-Fail "docker-compose up failed. Check Docker Desktop is running."
-    exit 1
-}
-
-Write-Host ""
-Write-Info "Waiting for containers to become healthy (up to 60s)..."
-$healthy    = $false
-$maxWait    = 60
-$elapsed    = 0
-$containers = @('nova-zookeeper', 'nova-kafka', 'nova-api', 'nova-mcp')
-
-while (-not $healthy -and $elapsed -lt $maxWait) {
-    Start-Sleep -Seconds 3
-    $elapsed += 3
-    $statuses = docker ps --format "{{.Names}}:{{.Status}}" 2>$null
-    $allUp = $true
-    foreach ($c in $containers) {
-        $match = $statuses | Where-Object { $_ -like "$c*" }
-        if (-not $match -or $match -notmatch 'Up|healthy') { $allUp = $false; break }
+# Check if API is already up
+$apiAlreadyUp = $false
+try {
+    $healthCheck = Invoke-RestMethod -Uri "$ApiUrl/health" -TimeoutSec 5 -ErrorAction Stop
+    if ($healthCheck.status -eq 'healthy') {
+        $apiAlreadyUp = $true
+        Write-OK "API already running and healthy at $ApiUrl"
+        Write-Info "  Groq   : $($healthCheck.services.groq)"
+        Write-Info "  Kafka  : $($healthCheck.services.kafka)"
+        Write-Info "  DB     : $($healthCheck.services.database)"
     }
-    if ($allUp) { $healthy = $true }
-    else { Write-Host "  ... ${elapsed}s elapsed - waiting..." -ForegroundColor Yellow }
+}
+catch { }
+
+if (-not $apiAlreadyUp) {
+    # Try docker-compose up
+    Write-Info "API not detected - attempting docker-compose up -d ..."
+
+    # Kill any stale process on port 8000 first
+    $stale = (netstat -ano 2>$null | Select-String ":8000 .*LISTENING") |
+        ForEach-Object { $_.ToString().Trim().Split()[-1] } | Select-Object -First 1
+    if ($stale -match '^\d+$') {
+        Write-Info "Freeing port 8000 (PID $stale)..."
+        taskkill /PID $stale /F 2>$null | Out-Null
+        Start-Sleep -Seconds 1
+    }
+
+    docker-compose up -d 2>&1 | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Warn "docker-compose up failed - trying to start API directly..."
+        Start-Process -FilePath "python" -ArgumentList "production/api/main.py" -NoNewWindow -PassThru | Out-Null
+        Start-Sleep -Seconds 5
+    }
+
+    # Wait for API to become healthy
+    Write-Info "Waiting for API to be ready (up to 60s)..."
+    $ready = $false
+    for ($i = 1; $i -le 20; $i++) {
+        Start-Sleep -Seconds 3
+        try {
+            $r = Invoke-RestMethod -Uri "$ApiUrl/health" -TimeoutSec 3 -ErrorAction Stop
+            if ($r.status -eq 'healthy') { $ready = $true; break }
+        } catch { }
+        Write-Host "  ... ${i}0s elapsed - waiting..." -ForegroundColor Yellow
+    }
+
+    if ($ready) { Write-OK "Stack is up and healthy" }
+    else { Write-Warn "Stack may not be fully ready - continuing demo anyway" }
 }
 
+# Show running processes serving key ports
 Write-Host ""
-Write-Host "  Container Status:" -ForegroundColor White
-docker ps --format "table {{.Names}}\t{{.Status}}" 2>$null
-
-if ($healthy) {
-    Write-OK "All containers are UP"
-}
-else {
-    Write-Warn "Some containers may still be starting - continuing demo"
+Write-Host "  Services on key ports:" -ForegroundColor White
+@(8000, 8001, 8080, 9092) | ForEach-Object {
+    $port = $_
+    $proc = netstat -ano 2>$null | Select-String ":$port .*LISTENING" | Select-Object -First 1
+    if ($proc) { Write-Host "  Port $port  : LISTENING" -ForegroundColor Green }
+    else        { Write-Host "  Port $port  : not in use" -ForegroundColor DarkGray }
 }
 
 Pause-Demo 2
@@ -141,7 +159,7 @@ try {
     } | ConvertTo-Json
 
     $response = Invoke-RestMethod `
-        -Uri "http://localhost:8000/api/tickets" `
+        -Uri "$ApiUrl/api/tickets" `
         -Method POST `
         -Body $ticketBody `
         -ContentType "application/json" `
@@ -175,11 +193,11 @@ Pause-Demo 3
 # ============================================================
 Write-Step "MINUTE 2:00" "API Documentation - all endpoints"
 Write-Host ""
-Write-Info "Fetching OpenAPI spec from http://localhost:8000/openapi.json ..."
+Write-Info "Fetching OpenAPI spec from $ApiUrl/openapi.json ..."
 Write-Host ""
 
 try {
-    $spec = Invoke-RestMethod -Uri "http://localhost:8000/openapi.json" -TimeoutSec 10
+    $spec = Invoke-RestMethod -Uri "$ApiUrl/openapi.json" -TimeoutSec 10
     Write-OK "API is live: $($spec.info.title) v$($spec.info.version)"
     Write-Host ""
     Write-Host "  Registered Endpoints:" -ForegroundColor White
@@ -191,11 +209,11 @@ try {
 }
 catch {
     Write-Warn "Could not reach /openapi.json - try manually:"
-    Write-Info "  http://localhost:8000/docs"
+    Write-Info "  $ApiUrl/docs"
 }
 
 Write-Host ""
-Write-Info "Open http://localhost:8000/docs in your browser for the Swagger UI."
+Write-Info "Open $ApiUrl/docs in your browser for the Swagger UI."
 Pause-Demo 3
 
 # ============================================================
@@ -251,13 +269,23 @@ Pause-Demo 2
 # ============================================================
 #  MINUTE 4:00 - Kafka UI -> http://localhost:8080
 # ============================================================
-Write-Step "MINUTE 4:00" "Starting Kafka UI (debug profile)"
+Write-Step "MINUTE 4:00" "Checking Kafka UI at http://localhost:8080"
 Write-Host ""
-Write-Info "Running: docker-compose --profile debug up -d kafka-ui"
-docker-compose --profile debug up -d kafka-ui 2>&1
+
+# Try to start via docker-compose if available, otherwise just check if it's up
+$dockerOk = $false
+docker info 2>&1 | Out-Null
+if ($LASTEXITCODE -eq 0) {
+    Write-Info "Running: docker-compose --profile debug up -d kafka-ui"
+    docker-compose --profile debug up -d kafka-ui 2>&1 | Out-Null
+    $dockerOk = $true
+}
+else {
+    Write-Info "Docker engine not reachable - checking if Kafka UI is already running..."
+}
 
 Write-Host ""
-Write-Info "Waiting for Kafka UI to respond..."
+Write-Info "Waiting for Kafka UI to respond (up to 30s)..."
 $kuiReady = $false
 for ($i = 1; $i -le 15; $i++) {
     try {
@@ -268,7 +296,7 @@ for ($i = 1; $i -le 15; $i++) {
 }
 
 if ($kuiReady) { Write-OK "Kafka UI is live at http://localhost:8080" }
-else { Write-Warn "Kafka UI may still be starting - try http://localhost:8080 in your browser" }
+else { Write-Warn "Kafka UI not detected on port 8080 - it may require Docker or a separate start" }
 
 Write-Host ""
 Write-Info "Open http://localhost:8080 to browse Kafka topics and messages live."
@@ -285,8 +313,8 @@ Write-Host ""
 Write-Host "  Live URLs:" -ForegroundColor White
 Write-Host "  ----------------------------------------------------------" -ForegroundColor DarkGray
 Write-Host "  Web Form     http://localhost:3000" -ForegroundColor Cyan
-Write-Host "  API Docs     http://localhost:8000/docs" -ForegroundColor Cyan
-Write-Host "  API Health   http://localhost:8000/health" -ForegroundColor Cyan
+Write-Host "  API Docs     $ApiUrl/docs" -ForegroundColor Cyan
+Write-Host "  API Health   $ApiUrl/health" -ForegroundColor Cyan
 Write-Host "  Kafka UI     http://localhost:8080" -ForegroundColor Cyan
 Write-Host "  MCP Tools    http://localhost:8001/tools" -ForegroundColor Cyan
 Write-Host ""
