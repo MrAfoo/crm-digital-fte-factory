@@ -96,7 +96,7 @@ http://localhost:8000/api/stats
 
 ## Demo 4: Web Form (1 minute)
 
-1. Open: `src/web-form/index.html` in browser
+1. Open: `web-form-nextjs` in browser
 2. Fill in:
    - Name: Judge Demo
    - Email: judge@hackathon.com  
