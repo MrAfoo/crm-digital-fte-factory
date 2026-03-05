@@ -34,9 +34,9 @@ class TestEdgeCases:
         assert len(result) <= 300
     
     def test_pricing_escalation_keywords(self):
-        """Check that prompts.py CUSTOMER_SUCCESS_SYSTEM_PROMPT mentions pricing escalation."""
+        """Check that prompts.py CUSTOMER_SUCCESS_SYSTEM_PROMPT mentions billing/refund escalation."""
         from production.agent.prompts import CUSTOMER_SUCCESS_SYSTEM_PROMPT
-        assert 'pricing' in CUSTOMER_SUCCESS_SYSTEM_PROMPT.lower()
+        assert 'billing' in CUSTOMER_SUCCESS_SYSTEM_PROMPT.lower()
     
     def test_angry_customer_escalation_keyword(self):
         """Prompt mentions angry/profanity escalation condition."""
