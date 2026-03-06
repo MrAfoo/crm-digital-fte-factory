@@ -291,8 +291,22 @@ class CustomerSuccessAgent:
                 logger.error(f"Agent run error: {e}")
                 final_response = None
         
-        # If LLM ended without a text response, use what send_response tool captured
-        if not final_response and send_response_text:
+        # If LLM ended without a real text response, generate one directly
+        if not final_response and not send_response_text:
+            # LLM called tools but never produced a real reply — ask it directly
+            logger.info("No real response captured — generating direct reply")
+            messages.append({
+                "role": "user",
+                "content": (
+                    f"Now write your actual response to the customer. "
+                    f"Be helpful, specific, and directly address their issue. "
+                    f"Format for {context.channel} channel. Do NOT call any tools — just write the reply."
+                )
+            })
+            direct = await self._call_groq_with_tools(messages, [])  # no tools
+            final_response = direct.choices[0].message.content or ""
+
+        elif not final_response and send_response_text:
             final_response = send_response_text
 
         # Strip any leaked raw function call text (llama-3.1 quirk)
