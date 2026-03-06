@@ -147,7 +147,10 @@ async def main():
     if not healthy:
         sys.exit(1)
 
-    for email in SAMPLE_EMAILS:
+    # Only test the first email in demo mode to keep it fast
+    # Set GMAIL_TEST_ALL=1 to test all emails
+    emails = SAMPLE_EMAILS if os.getenv('GMAIL_TEST_ALL') else SAMPLE_EMAILS[:1]
+    for email in emails:
         await test_gmail_webhook(email)
         await asyncio.sleep(2)  # pause between emails
 

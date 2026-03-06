@@ -147,7 +147,10 @@ async def main():
 
     await test_webhook_verification()
 
-    for msg in SAMPLE_MESSAGES:
+    # Only test the first message in demo mode to keep it fast
+    # Set WHATSAPP_TEST_ALL=1 to test all messages
+    msgs = SAMPLE_MESSAGES if os.getenv('WHATSAPP_TEST_ALL') else SAMPLE_MESSAGES[:1]
+    for msg in msgs:
         await test_incoming_message(msg)
         await asyncio.sleep(1)  # brief pause between messages
 
