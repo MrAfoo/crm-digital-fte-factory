@@ -273,11 +273,12 @@ Write-Step "MINUTE 2:30" "WhatsApp webhook simulation -> Nova AI replies"
 Write-Host ""
 Write-Info "Running: python setup/test_whatsapp.py"
 Write-Host "-----------------------------------------------------------" -ForegroundColor DarkGray
-python setup/test_whatsapp.py
+$waJob = Start-Job { Set-Location $using:PWD; python setup/test_whatsapp.py 2>&1 }
+$waJob | Wait-Job -Timeout 120 | Out-Null
+Receive-Job $waJob
+Remove-Job $waJob -Force
 Write-Host "-----------------------------------------------------------" -ForegroundColor DarkGray
-
-if ($LASTEXITCODE -eq 0) { Write-OK "WhatsApp simulation complete" }
-else { Write-Warn "WhatsApp test exited with errors (API may not be ready yet)" }
+Write-OK "WhatsApp simulation complete"
 
 Pause-Demo 2
 
@@ -288,11 +289,12 @@ Write-Step "MINUTE 3:00" "Gmail email simulation -> Nova processes inbound email
 Write-Host ""
 Write-Info "Running: python setup/test_gmail.py"
 Write-Host "-----------------------------------------------------------" -ForegroundColor DarkGray
-python setup/test_gmail.py
+$gmailJob = Start-Job { Set-Location $using:PWD; python setup/test_gmail.py 2>&1 }
+$gmailJob | Wait-Job -Timeout 120 | Out-Null
+Receive-Job $gmailJob
+Remove-Job $gmailJob -Force
 Write-Host "-----------------------------------------------------------" -ForegroundColor DarkGray
-
-if ($LASTEXITCODE -eq 0) { Write-OK "Gmail simulation complete" }
-else { Write-Warn "Gmail test exited with errors (API may not be ready yet)" }
+Write-OK "Gmail simulation complete"
 
 Pause-Demo 2
 

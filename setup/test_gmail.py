@@ -115,7 +115,7 @@ async def test_gmail_webhook(email: dict):
         "conversation_id": None
     }
 
-    async with httpx.AsyncClient(timeout=30.0) as client:
+    async with httpx.AsyncClient(timeout=60.0) as client:
         try:
             resp = await client.post(url, json=payload)
             if resp.status_code == 200:

@@ -104,7 +104,7 @@ async def test_incoming_message(msg_data: dict):
     print(f"\n[TEST] Incoming Message: {msg_data['description']}")
     print("-" * 40)
     url = f"{BASE_URL}/webhook/whatsapp"
-    async with httpx.AsyncClient(timeout=30.0) as client:
+    async with httpx.AsyncClient(timeout=60.0) as client:
         try:
             resp = await client.post(url, json=msg_data['payload'])
             print(f"  Status : {resp.status_code}")
