@@ -342,11 +342,32 @@ def _get_estimated_response_time(channel: str) -> str:
     return response_times.get(channel, "2-4 hours")
 
 
+async def _process_web_ticket(ticket_id: str, message: str, channel: str, customer_id: str):
+    """Background task: run agent on web ticket and store Nova's reply."""
+    try:
+        if not (hasattr(app.state, "agent") and app.state.agent):
+            return
+        result = await app.state.agent.run(message, channel, customer_id, None)
+        reply = result.get("formatted_response") or result.get("response", "")
+        escalated = result.get("escalated", False)
+        sentiment = result.get("sentiment", "neutral")
+        if ticket_id in tickets_db:
+            tickets_db[ticket_id]["nova_response"] = reply
+            tickets_db[ticket_id]["status"] = "escalated" if escalated else "resolved"
+            tickets_db[ticket_id]["sentiment"] = sentiment
+            tickets_db[ticket_id]["responded_at"] = datetime.now(timezone.utc).isoformat()
+            logger.info(f"Nova replied to web ticket {ticket_id} (escalated={escalated})")
+    except Exception as e:
+        logger.error(f"Agent error for web ticket {ticket_id}: {e}")
+        if ticket_id in tickets_db:
+            tickets_db[ticket_id]["status"] = "open"
+
+
 @app.post("/api/tickets", response_model=TicketResponse)
-async def create_ticket(request: TicketCreateRequest):
-    """Create a support ticket from web form"""
+async def create_ticket(request: TicketCreateRequest, background_tasks: BackgroundTasks):
+    """Create a support ticket from web form and process with Nova in background"""
     ticket_id = f"TKT-{len(tickets_db) + 1:04d}"
-    
+
     ticket = {
         "ticket_id": ticket_id,
         "name": request.name,
@@ -354,17 +375,25 @@ async def create_ticket(request: TicketCreateRequest):
         "subject": request.subject,
         "channel": request.channel,
         "description": request.description,
-        "status": "open",
+        "status": "in_progress",
+        "nova_response": None,
+        "sentiment": None,
         "created_at": datetime.now(timezone.utc).isoformat(),
+        "responded_at": None,
     }
-    
+
     tickets_db[ticket_id] = ticket
     logger.info(f"Created ticket {ticket_id} from {request.email}")
-    
+
+    # Process with Nova agent in the background
+    customer_id = f"web_{request.email.replace('@','_').replace('.','_')}"
+    full_message = f"Subject: {request.subject}\n\n{request.description}"
+    background_tasks.add_task(_process_web_ticket, ticket_id, full_message, request.channel or "web", customer_id)
+
     return TicketResponse(
         ticket_id=ticket_id,
-        status="open",
-        message="Ticket created successfully",
+        status="in_progress",
+        message="Ticket created — Nova is processing your request",
         estimated_response_time=_get_estimated_response_time(request.channel),
         created_at=ticket["created_at"],
     )
