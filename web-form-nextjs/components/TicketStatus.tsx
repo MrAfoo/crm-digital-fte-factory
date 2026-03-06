@@ -95,7 +95,7 @@ export default function TicketStatus({ ticketId }: { ticketId: string }) {
 
   // ── Ticket card ────────────────────────────────────────────
   return (
-    <div ref={cardRef} style={{ opacity: 0 }}>
+    <div ref={cardRef} style={{ opacity: 1 }}>
 
       {/* Status header */}
       <div className="glass rounded-3xl" style={{ padding: '28px 32px', marginBottom: 16 }}>

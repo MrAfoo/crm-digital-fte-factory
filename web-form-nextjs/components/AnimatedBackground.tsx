@@ -3,11 +3,11 @@
 import { useEffect, useRef } from 'react';
 
 const ORBS = [
-  { size: 600, color: 'rgba(108,99,255,0.35)', top: '10%',  left: '15%',  duration: 18, delay: 0  },
-  { size: 500, color: 'rgba(167,139,250,0.28)', top: '60%', left: '70%',  duration: 22, delay: -6 },
-  { size: 420, color: 'rgba(99,102,241,0.30)',  top: '80%', left: '20%',  duration: 16, delay: -4 },
-  { size: 480, color: 'rgba(139,92,246,0.25)',  top: '20%', left: '75%',  duration: 25, delay: -10},
-  { size: 350, color: 'rgba(196,181,253,0.22)', top: '45%', left: '45%',  duration: 20, delay: -8 },
+  { size: 600, color: 'rgba(108,99,255,0.56)', top: '10%',  left: '15%',  duration: 18, delay: 0  },
+  { size: 500, color: 'rgba(167,139,250,0.45)', top: '60%', left: '70%',  duration: 22, delay: -6 },
+  { size: 420, color: 'rgba(99,102,241,0.48)',  top: '80%', left: '20%',  duration: 16, delay: -4 },
+  { size: 480, color: 'rgba(139,92,246,0.40)',  top: '20%', left: '75%',  duration: 25, delay: -10},
+  { size: 350, color: 'rgba(196,181,253,0.35)', top: '45%', left: '45%',  duration: 20, delay: -8 },
 ];
 
 export default function AnimatedBackground() {
@@ -77,7 +77,7 @@ export default function AnimatedBackground() {
               height: orb.size,
               borderRadius: '50%',
               background: `radial-gradient(circle at 40% 40%, ${orb.color} 0%, transparent 65%)`,
-              filter: 'blur(40px)',
+              filter: 'blur(8px)',
               animation: `orbFloat ${orb.duration}s ease-in-out ${orb.delay}s infinite`,
               transform: 'translate(-50%, -50%)',
             }}
@@ -101,7 +101,7 @@ export default function AnimatedBackground() {
           width: '40%',
           height: '60%',
           background: 'radial-gradient(ellipse, rgba(108,99,255,0.12) 0%, transparent 70%)',
-          filter: 'blur(60px)',
+          filter: 'blur(20px)',
           animation: 'orbFloat 30s ease-in-out -5s infinite',
         }} />
       </div>

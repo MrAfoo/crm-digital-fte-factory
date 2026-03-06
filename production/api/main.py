@@ -416,10 +416,11 @@ async def list_tickets(status: Optional[str] = None):
 @app.get("/api/tickets/{ticket_id}")
 async def get_ticket(ticket_id: str):
     """Get a single ticket by ID"""
-    if ticket_id not in tickets_db:
+    ticket_id_upper = ticket_id.upper()
+    if ticket_id_upper not in tickets_db:
         raise HTTPException(status_code=404, detail="Ticket not found")
     
-    return tickets_db[ticket_id]
+    return tickets_db[ticket_id_upper]
 
 
 @app.put("/api/tickets/{ticket_id}/status")
