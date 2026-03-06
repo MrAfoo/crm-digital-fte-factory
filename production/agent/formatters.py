@@ -35,18 +35,29 @@ class ChannelFormatter:
     def _format_email(self, response: str, customer_name: str) -> str:
         """
         Format response for email channel.
-        - Strips existing greetings
-        - Adds formal greeting with customer name
-        - Adds signature
+        - Strips existing greetings and signatures Nova may have included
+        - Adds clean greeting with customer name
+        - Adds single signature
         - Enforces character limit
         """
-        # Strip existing greetings
-        cleaned = self._strip_existing_greeting(response)
-        
-        # Build formatted email
+        import re as _re
+        cleaned = response.strip()
+
+        # Strip duplicate Subject: lines Nova sometimes adds
+        cleaned = _re.sub(r'^Subject:.*?\n\n?', '', cleaned, flags=_re.IGNORECASE).strip()
+
+        # Strip existing greeting (Hi X, / Dear X,)
+        cleaned = self._strip_existing_greeting(cleaned)
+
+        # Strip existing signature block (Best regards / Nova | NovaDeskAI)
+        cleaned = _re.sub(
+            r'\n+(Best regards,?|Warm regards,?|Sincerely,?)\s*\n.*?(Nova.*?Support)?\s*$',
+            '', cleaned, flags=_re.DOTALL | _re.IGNORECASE
+        ).strip()
+
+        # Build clean formatted email
         formatted = f"Hi {customer_name},\n\n{cleaned}\n\nBest regards,\nNova | NovaDeskAI Support"
-        
-        # Enforce length limit
+
         return self.truncate_to_limit(formatted, 'email')
 
     def _format_whatsapp(self, response: str) -> str:

@@ -360,12 +360,12 @@ def _is_internal_reply(text: str) -> bool:
     return any(_re.search(p, t, _re.IGNORECASE) for p in _INTERNAL_REPLY_PATTERNS)
 
 
-async def _process_web_ticket(ticket_id: str, message: str, channel: str, customer_id: str):
+async def _process_web_ticket(ticket_id: str, message: str, channel: str, customer_id: str, customer_name: str = "Customer"):
     """Background task: run agent on web ticket and store Nova's reply."""
     try:
         if not (hasattr(app.state, "agent") and app.state.agent):
             return
-        result = await app.state.agent.run(message, channel, customer_id, None)
+        result = await app.state.agent.run(message, channel, customer_id, None, customer_name=customer_name)
         reply = result.get("formatted_response") or result.get("response", "")
         escalated = result.get("escalated", False)
         sentiment = result.get("sentiment", "neutral")
@@ -419,7 +419,7 @@ async def create_ticket(request: TicketCreateRequest, background_tasks: Backgrou
     # Process with Nova agent in the background
     customer_id = f"web_{request.email.replace('@','_').replace('.','_')}"
     full_message = f"Subject: {request.subject}\n\n{request.description}"
-    background_tasks.add_task(_process_web_ticket, ticket_id, full_message, request.channel or "web", customer_id)
+    background_tasks.add_task(_process_web_ticket, ticket_id, full_message, request.channel or "web", customer_id, request.name or "Customer")
 
     return TicketResponse(
         ticket_id=ticket_id,
