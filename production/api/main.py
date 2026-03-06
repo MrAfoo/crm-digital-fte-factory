@@ -646,4 +646,29 @@ async def submit_support_form(request: TicketCreateRequest):
 # ==================== Main ====================
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000, reload=False)
+    import sys
+
+    port = int(os.getenv("PORT", "8000"))
+
+    # Suppress noisy WinError 10054 (ConnectionResetError) from the Windows
+    # ProactorEventLoop — the remote host closed the connection abruptly, which
+    # is harmless but generates a traceback in asyncio's default handler.
+    # We pass a custom loop_setup_function so uvicorn owns the event loop.
+    if sys.platform == "win32":
+        def _silence_proactor_pipe_errors(loop, context):
+            exc = context.get("exception")
+            if isinstance(exc, (ConnectionResetError, BrokenPipeError)):
+                return  # silently ignore
+            loop.default_exception_handler(context)
+
+        config = uvicorn.Config(app, host="0.0.0.0", port=port, reload=False)
+        server = uvicorn.Server(config)
+
+        async def _serve():
+            loop = asyncio.get_event_loop()
+            loop.set_exception_handler(_silence_proactor_pipe_errors)
+            await server.serve()
+
+        asyncio.run(_serve())
+    else:
+        uvicorn.run(app, host="0.0.0.0", port=port, reload=False)

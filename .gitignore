@@ -1,3 +1,6 @@
+# Atlassian CLI (large binary/plugin folder)
+.acli/
+
 # Environment variables
 .env
 .env.*

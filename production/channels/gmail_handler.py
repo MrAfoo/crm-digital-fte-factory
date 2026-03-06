@@ -3,6 +3,7 @@ Gmail Channel Handler for NovaDeskAI.
 Handles inbound email via Gmail API + Pub/Sub push notifications.
 Sends replies via Gmail API.
 """
+import asyncio
 import base64
 import email as email_lib
 import json
@@ -32,7 +33,11 @@ except ImportError:
 
 class GmailHandler:
     """Handler for Gmail channel integration."""
-    
+
+    # Class-level last known historyId — persists across webhook calls within
+    # the same process lifetime so we never miss messages between notifications.
+    _last_history_id: str = None
+
     def __init__(self, token_path: str = None):
         """Initialize Gmail handler with user token (oauth token, not app credentials)."""
         self.available = False
@@ -143,35 +148,49 @@ class GmailHandler:
                 logger.warning("No historyId in Pub/Sub message")
                 return []
 
-            # Gmail history API returns records AFTER startHistoryId.
-            # Use historyId - 1 so the triggering message IS included.
+            # Determine startHistoryId:
+            # - Use the last processed historyId if we have one (most reliable)
+            # - Otherwise fall back to notification historyId - 100 as a safe window
+            # After processing, save the notification historyId as the new baseline.
             try:
-                start_id = str(int(history_id) - 1)
+                if GmailHandler._last_history_id:
+                    start_id = GmailHandler._last_history_id
+                    logger.info(f"Using persisted startHistoryId={start_id}")
+                else:
+                    start_id = str(max(1, int(history_id) - 100))
+                    logger.info(f"No persisted historyId, using fallback startId={start_id}")
             except (ValueError, TypeError):
                 start_id = history_id
 
-            # Get new messages since last history ID
-            history = self.service.users().history().list(
-                userId='me',
-                startHistoryId=start_id,
-                historyTypes=['messageAdded']
-            ).execute()
+            # Get new messages since last history ID (no type filter — get all,
+            # then we filter for INBOX messagesAdded ourselves)
+            history = await asyncio.to_thread(
+                lambda: self.service.users().history().list(
+                    userId='me',
+                    startHistoryId=start_id,
+                ).execute()
+            )
 
             messages = []
             seen_ids = set()
-            for record in history.get('history', []):
+            history_records = history.get('history', [])
+            for record in history_records:
                 for msg_added in record.get('messagesAdded', []):
                     msg_id = msg_added['message']['id']
+                    labels = msg_added['message'].get('labelIds', [])
                     if msg_id in seen_ids:
                         continue
                     seen_ids.add(msg_id)
                     # Only process INBOX messages (skip sent/drafts/spam)
-                    labels = msg_added['message'].get('labelIds', [])
                     if 'INBOX' in labels or not labels:
                         message = await self.get_message(msg_id)
                         if message:
                             messages.append(message)
+                    else:
+                        logger.debug(f"Skipping {msg_id} — not INBOX (labels={labels})")
 
+            # Save current historyId as baseline for next notification
+            GmailHandler._last_history_id = history_id
             logger.info(f"Processed {len(messages)} new emails (historyId={history_id}, startId={start_id})")
             return messages
         except Exception as e:
@@ -184,11 +203,13 @@ class GmailHandler:
             return {}
         
         try:
-            msg = self.service.users().messages().get(
-                userId='me',
-                id=message_id,
-                format='full'
-            ).execute()
+            msg = await asyncio.to_thread(
+                lambda: self.service.users().messages().get(
+                    userId='me',
+                    id=message_id,
+                    format='full'
+                ).execute()
+            )
             
             headers = {h['name']: h['value'] for h in msg['payload'].get('headers', [])}
             body = self._extract_body(msg['payload'])
@@ -208,7 +229,11 @@ class GmailHandler:
                 }
             }
         except Exception as e:
-            logger.error(f"Failed to get Gmail message {message_id}: {e}")
+            # 404 means the message was deleted/moved before we could fetch it — not a real error
+            if hasattr(e, 'resp') and getattr(e.resp, 'status', None) == 404:
+                logger.warning(f"Gmail message {message_id} no longer exists (404) — skipping")
+            else:
+                logger.error(f"Failed to get Gmail message {message_id}: {e}")
             return {}
     
     def _extract_body(self, payload: dict) -> str:
@@ -278,10 +303,12 @@ class GmailHandler:
             if thread_id:
                 send_request['threadId'] = thread_id
             
-            result = self.service.users().messages().send(
-                userId='me',
-                body=send_request
-            ).execute()
+            result = await asyncio.to_thread(
+                lambda: self.service.users().messages().send(
+                    userId='me',
+                    body=send_request
+                ).execute()
+            )
             
             logger.info(f"Sent reply to {to_email}")
             return {
@@ -304,10 +331,12 @@ class GmailHandler:
             
             raw = base64.urlsafe_b64encode(message.as_bytes()).decode('utf-8')
             
-            result = self.service.users().messages().send(
-                userId='me',
-                body={'raw': raw}
-            ).execute()
+            result = await asyncio.to_thread(
+                lambda: self.service.users().messages().send(
+                    userId='me',
+                    body={'raw': raw}
+                ).execute()
+            )
             
             logger.info(f"Sent new email to {to_email}")
             return {

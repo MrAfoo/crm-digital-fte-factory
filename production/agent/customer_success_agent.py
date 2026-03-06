@@ -137,10 +137,10 @@ class CustomerSuccessAgent:
             except Exception as e:
                 err_str = str(e)
                 if "429" in err_str and attempt < max_retries - 1:
-                    # Parse retry-after from error message, default 30s
+                    # Parse retry-after from error message, default 60s
                     match = _re.search(r'try again in ([0-9.]+)s', err_str)
-                    wait = float(match.group(1)) + 1.0 if match else 30.0
-                    wait = min(wait, 60.0)  # cap at 60s
+                    wait = float(match.group(1)) + 2.0 if match else 60.0
+                    wait = min(wait, 120.0)  # cap at 2 min
                     logger.warning(f"Rate limited (429). Retrying in {wait:.1f}s (attempt {attempt+1}/{max_retries})")
                     await asyncio.sleep(wait)
                 else:
@@ -262,8 +262,14 @@ class CustomerSuccessAgent:
                     break
         
         except Exception as e:
-            logger.error(f"Agent run error: {e}")
-            final_response = f"An error occurred while processing your request. Please try again or contact support."
+            err_str = str(e)
+            if "429" in err_str:
+                logger.warning(f"Agent rate limited after all retries: {e}")
+                # Don't send an error — use the friendly fallback below
+                final_response = None
+            else:
+                logger.error(f"Agent run error: {e}")
+                final_response = None
         
         # Strip any leaked raw function call text (llama-3.1 quirk)
         if final_response:
