@@ -31,13 +31,15 @@ const CHANNEL_ICON: Record<string, string> = {
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 export default function TicketStatus({ ticketId }: { ticketId: string }) {
-  const [ticket, setTicket]   = useState<Ticket | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError]     = useState('');
+  const [ticket, setTicket]       = useState<Ticket | null>(null);
+  const [loading, setLoading]     = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError]         = useState('');
   const cardRef  = useRef<HTMLDivElement>(null);
   const pollRef  = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const fetchTicket = useCallback(async (animate = false) => {
+  const fetchTicket = useCallback(async (animate = false, isManual = false) => {
+    if (isManual) setRefreshing(true);
     try {
       const res = await fetch(`${API_BASE}/api/tickets/${ticketId}`, { cache: 'no-store' });
       if (!res.ok) throw new Error(res.status === 404 ? `Ticket ${ticketId} not found` : `Error ${res.status}`);
@@ -56,6 +58,7 @@ export default function TicketStatus({ ticketId }: { ticketId: string }) {
       setError(e instanceof Error ? e.message : 'Something went wrong');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, [ticketId]);
 
@@ -232,15 +235,29 @@ export default function TicketStatus({ ticketId }: { ticketId: string }) {
           ✏️ New Ticket
         </a>
         <button
-          onClick={() => fetchTicket(false)}
+          onClick={() => fetchTicket(false, true)}
+          disabled={refreshing}
           style={{
             display: 'inline-flex', alignItems: 'center', gap: 8,
             padding: '12px 24px', borderRadius: 12, fontSize: 14, fontWeight: 700,
-            background: 'rgba(255,255,255,0.06)', border: '1.5px solid rgba(255,255,255,0.12)',
-            color: 'rgba(255,255,255,0.7)', cursor: 'pointer',
+            background: refreshing ? 'rgba(108,99,255,0.15)' : 'rgba(255,255,255,0.06)',
+            border: `1.5px solid ${refreshing ? 'rgba(108,99,255,0.4)' : 'rgba(255,255,255,0.12)'}`,
+            color: refreshing ? '#a78bfa' : 'rgba(255,255,255,0.7)',
+            cursor: refreshing ? 'not-allowed' : 'pointer',
+            transition: 'all 0.2s ease',
           }}
         >
-          🔄 Refresh
+          {refreshing ? (
+            <>
+              <svg className="spinner" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <circle cx="12" cy="12" r="10" strokeOpacity="0.25"/>
+                <path d="M12 2a10 10 0 0 1 10 10"/>
+              </svg>
+              Refreshing…
+            </>
+          ) : (
+            <>🔄 Refresh</>
+          )}
         </button>
       </div>
     </div>
