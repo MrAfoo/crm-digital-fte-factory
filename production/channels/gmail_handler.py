@@ -319,33 +319,37 @@ class GmailHandler:
             logger.error(f"Failed to send email reply: {e}")
             return {'error': str(e)}
     
-    async def send_new_email(self, to_email: str, subject: str, body: str) -> dict:
+    async def send_new_email(self, to_email: str, subject: str, body: str, customer_name: str = "") -> dict:
         """Send new email (not a reply)."""
         if not self.available:
-            return {'error': 'Gmail handler not available'}
-        
+            logger.error("Gmail handler not available — cannot send email")
+            raise RuntimeError("Gmail handler not available")
+
         try:
-            message = MIMEText(body)
-            message['to'] = to_email
-            message['subject'] = subject
-            
-            raw = base64.urlsafe_b64encode(message.as_bytes()).decode('utf-8')
-            
+            msg = MIMEMultipart('alternative')
+            msg['to'] = f"{customer_name} <{to_email}>" if customer_name else to_email
+            msg['subject'] = subject
+
+            # Plain text part
+            msg.attach(MIMEText(body, 'plain'))
+
+            raw = base64.urlsafe_b64encode(msg.as_bytes()).decode('utf-8')
+
             result = await asyncio.to_thread(
                 lambda: self.service.users().messages().send(
                     userId='me',
                     body={'raw': raw}
                 ).execute()
             )
-            
-            logger.info(f"Sent new email to {to_email}")
+
+            logger.info(f"✅ Sent new email to {to_email} (id={result.get('id')})")
             return {
                 'channel_message_id': result['id'],
                 'delivery_status': 'sent'
             }
         except Exception as e:
-            logger.error(f"Failed to send new email: {e}")
-            return {'error': str(e)}
+            logger.error(f"Failed to send new email to {to_email}: {e}")
+            raise
     
     def normalize_to_standard(self, gmail_message: dict) -> dict:
         """Convert Gmail message to standard format."""

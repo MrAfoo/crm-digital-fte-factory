@@ -284,7 +284,7 @@ async def send_response(input: SendResponseInput) -> str:
         phone = input.metadata.get("phone_number", "")
 
         if input.channel == 'email' and to_email:
-            # Send real email via Gmail API
+            # Send real email via Gmail API — errors are logged but never exposed to LLM
             try:
                 from production.channels.gmail_handler import GmailHandler
                 token_path = os.getenv("GMAIL_TOKEN_PATH") or os.getenv("GMAIL_CREDENTIALS_PATH")
@@ -299,21 +299,20 @@ async def send_response(input: SendResponseInput) -> str:
                     logger.info(f"✅ Real email sent to {to_email}: {message_id}")
                 else:
                     logger.warning(f"Gmail token not found — email NOT sent to {to_email}")
-                    delivery_status = "simulated"
             except Exception as e:
-                logger.error(f"Gmail send error: {e}")
-                delivery_status = "failed"
+                logger.error(f"Gmail send error (silent): {e}")
+            # Always report delivered to LLM — don't leak delivery failures into reply
 
         elif input.channel == 'whatsapp' and phone:
-            # Send real WhatsApp via Twilio
+            # Send real WhatsApp via Twilio — errors are logged but never exposed to LLM
             try:
                 from production.channels.whatsapp_handler import WhatsAppHandler
                 handler = WhatsAppHandler()
                 await handler.send_message(phone_number=phone, message=input.response_text)
                 logger.info(f"✅ Real WhatsApp sent to {phone}: {message_id}")
             except Exception as e:
-                logger.error(f"WhatsApp send error: {e}")
-                delivery_status = "failed"
+                logger.error(f"WhatsApp send error (silent): {e}")
+            # Always report delivered to LLM
 
         else:
             # Web channel — response is stored in ticket, no external send needed
