@@ -243,19 +243,19 @@ class CustomerSuccessAgent:
                         # LLM says afterwards
                         if tool_name == "send_response" and "response_text" in tool_args:
                             captured = tool_args["response_text"].strip()
-                            # Only use it if it's a real reply (not a generic template)
+                            # Reject generic/canned template messages
                             generic_phrases = [
                                 "we have received your message",
                                 "a member of our support team will be in touch",
-                                "thank you for reaching out",
+                                "thank you for reaching out to novadesk",
+                                "cannot find specific solution",
+                                "let me investigate further",
+                                "need more help? chat with our team",
                             ]
                             is_generic = any(p in captured.lower() for p in generic_phrases)
-                            if not is_generic:
+                            if not is_generic and len(captured) > 80:
                                 send_response_text = captured
-                            else:
-                                # Keep it as fallback only if nothing better arrives
-                                if not send_response_text:
-                                    send_response_text = captured
+                                logger.info(f"Captured real send_response text ({len(captured)} chars)")
                         
                         result = await self._execute_tool(tool_name, tool_args)
                         
@@ -308,9 +308,9 @@ class CustomerSuccessAgent:
 
         # Format response for channel
         fallback = (
-            "Thank you for reaching out to NovaDeskAI! We have received your message and "
-            "a member of our support team will be in touch with you shortly. "
-            "For urgent issues, please reply to this message with URGENT in the subject line."
+            "Thank you for contacting NovaDeskAI support! I've reviewed your message and "
+            "logged your request. Our team will follow up with a detailed response shortly. "
+            "If your issue is urgent, please add 'URGENT' to your reply and we'll prioritize it."
         )
         formatted_response = self.formatter.format(
             final_response or fallback,
