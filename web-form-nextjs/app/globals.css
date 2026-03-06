@@ -44,7 +44,7 @@ html {
 }
 
 body {
-  background: linear-gradient(135deg, var(--color-bg-dark) 0%, #1a1a2e 50%, #0f0f1a 100%);
+  background: #07070f;
   color: var(--color-text-primary);
   font-family: system-ui, -apple-system, 'Segoe UI', 'Inter', sans-serif;
   font-size: 1rem;
@@ -52,20 +52,6 @@ body {
   letter-spacing: 0.3px;
   overflow-x: hidden;
   position: relative;
-}
-
-/* Background radial gradient glow */
-body::before {
-  content: '';
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: radial-gradient(circle at 20% 50%, rgba(108, 99, 255, 0.08) 0%, transparent 50%),
-              radial-gradient(circle at 80% 80%, rgba(167, 139, 250, 0.05) 0%, transparent 50%);
-  pointer-events: none;
-  z-index: 0;
 }
 
 /* ===== Typography ===== */
