@@ -350,6 +350,11 @@ _INTERNAL_REPLY_PATTERNS = [
     r'"success":\s*true',        # raw JSON
     r"ticket created.*escalation initiated",
     r"need more help\? chat with our team",
+    r"the customer issue was resolved",
+    r"a new ticket was logged",
+    r"relevant documentation was searched",
+    r"response was delivered successfully",
+    r"ticket.*logged.*documentation.*searched",
 ]
 
 def _is_internal_reply(text: str) -> bool:
