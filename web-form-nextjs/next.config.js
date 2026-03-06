@@ -4,6 +4,7 @@ const nextConfig = {
   swcMinify: true,
   compress: true,
   poweredByHeader: false,
+  transpilePackages: ['gsap'],
   headers: async () => {
     return [
       {

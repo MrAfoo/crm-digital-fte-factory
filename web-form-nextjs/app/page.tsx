@@ -1,10 +1,13 @@
 'use client';
 
 import SupportForm from '@/components/SupportForm';
+import AnimatedBackground from '@/components/AnimatedBackground';
 
 export default function Home() {
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 16px' }}>
+    <>
+    <AnimatedBackground />
+    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 16px', position: 'relative', zIndex: 1 }}>
       <div style={{ width: '100%', maxWidth: 640 }}>
 
         {/* Hero Section */}
@@ -97,5 +100,6 @@ export default function Home() {
 
       </div>
     </div>
+    </>
   );
 }

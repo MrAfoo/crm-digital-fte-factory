@@ -179,32 +179,86 @@ export default function SupportForm() {
 
   // ── Success state ─────────────────────────────────────────
   if (ticketId) return (
-    <div ref={successRef} className="glass rounded-3xl p-10 text-center" style={{ opacity: 0 }}>
+    <div ref={successRef} className="glass rounded-3xl" style={{ opacity: 0, padding: '48px 40px', textAlign: 'center' }}>
+      {/* Animated check ring */}
       <div className="success-icon" style={{
-        width: 80, height: 80, borderRadius: '50%', margin: '0 auto 24px',
-        background: 'linear-gradient(135deg, #6C63FF, #10b981)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 36,
-        boxShadow: '0 0 40px rgba(108,99,255,0.4)',
-      }}>✅</div>
-      <h2 style={{ fontSize: 30, fontWeight: 800, color: '#fff', marginBottom: 8 }}>
+        width: 96, height: 96, borderRadius: '50%', margin: '0 auto 32px',
+        background: 'linear-gradient(135deg, rgba(108,99,255,0.3), rgba(16,185,129,0.3))',
+        border: '2px solid rgba(108,99,255,0.5)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 42,
+        boxShadow: '0 0 60px rgba(108,99,255,0.35), 0 0 120px rgba(108,99,255,0.1)',
+        position: 'relative',
+      }}>
+        ✅
+        {/* Glow ring pulse — handled by CSS */}
+      </div>
+
+      <h2 style={{ fontSize: 32, fontWeight: 900, color: '#fff', marginBottom: 10, letterSpacing: '-0.5px' }}>
         You&apos;re all set!
       </h2>
-      <p style={{ color: 'rgba(255,255,255,0.5)', marginBottom: 12, fontSize: 15 }}>
-        Nova has received your request. Your ticket:
+      <p style={{ color: 'rgba(255,255,255,0.45)', marginBottom: 28, fontSize: 15, lineHeight: 1.6 }}>
+        Nova has received your message and is processing it now.
       </p>
-      <div className="ticket-badge">{ticketId}</div>
-      <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 13, marginBottom: 32 }}>
-        We&apos;ll reply via <strong style={{ color: '#a78bfa' }}>{form.channel}</strong> · Avg response &lt; 2 min
-      </p>
-      <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
-        <button className="nova-btn" onClick={handleReset}>Submit Another</button>
+
+      {/* Ticket ID pill */}
+      <div style={{
+        display: 'inline-flex', alignItems: 'center', gap: 10,
+        background: 'rgba(108,99,255,0.12)',
+        border: '1.5px solid rgba(108,99,255,0.4)',
+        borderRadius: 100, padding: '10px 24px', marginBottom: 12,
+      }}>
+        <span style={{ fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: 1 }}>Ticket</span>
+        <span style={{ fontSize: 18, fontWeight: 800, color: '#a78bfa', fontFamily: 'monospace', letterSpacing: 2 }}>{ticketId}</span>
+      </div>
+
+      {/* Channel + ETA info */}
+      <div style={{
+        display: 'flex', justifyContent: 'center', gap: 24, marginBottom: 36, marginTop: 16, flexWrap: 'wrap',
+      }}>
+        {[
+          { icon: form.channel === 'email' ? '📧' : form.channel === 'whatsapp' ? '💬' : '🌐', label: 'Reply via', value: form.channel.charAt(0).toUpperCase() + form.channel.slice(1) },
+          { icon: '⚡', label: 'Response time', value: '< 2 minutes' },
+          { icon: '🔒', label: 'Status', value: 'Secure & Encrypted' },
+        ].map((item, i) => (
+          <div key={i} style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: 22, marginBottom: 4 }}>{item.icon}</div>
+            <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 2 }}>{item.label}</div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.7)' }}>{item.value}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Divider */}
+      <div style={{ height: 1, background: 'rgba(255,255,255,0.06)', margin: '0 0 28px' }} />
+
+      {/* Actions */}
+      <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
         <a
           href={`/ticket/${ticketId}`}
-          className="nova-btn"
-          style={{ background: 'rgba(255,255,255,0.07)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 8,
+            padding: '12px 28px', borderRadius: 12, fontSize: 14, fontWeight: 700,
+            background: 'linear-gradient(135deg, #6C63FF, #a78bfa)',
+            color: '#fff', textDecoration: 'none',
+            boxShadow: '0 4px 20px rgba(108,99,255,0.4)',
+            transition: 'all 0.2s ease',
+          }}
         >
-          Track Ticket →
+          📍 Track My Ticket
         </a>
+        <button
+          onClick={handleReset}
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 8,
+            padding: '12px 28px', borderRadius: 12, fontSize: 14, fontWeight: 700,
+            background: 'rgba(255,255,255,0.06)',
+            border: '1.5px solid rgba(255,255,255,0.12)',
+            color: 'rgba(255,255,255,0.7)', cursor: 'pointer',
+            transition: 'all 0.2s ease',
+          }}
+        >
+          ✏️ Submit Another
+        </button>
       </div>
     </div>
   );
