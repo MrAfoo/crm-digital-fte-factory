@@ -1,17 +1,15 @@
 'use client';
 
-import { use } from 'react';
 import TicketStatus from '@/components/TicketStatus';
 import AnimatedBackground from '@/components/AnimatedBackground';
 import Link from 'next/link';
 
 interface TicketPageProps {
-  params: Promise<{ id: string }>;
+  params: { id: string };
 }
 
 export default function TicketPage({ params }: TicketPageProps) {
-  const { id } = use(params);
-  const ticketId = decodeURIComponent(id).toUpperCase();
+  const ticketId = decodeURIComponent(params.id).toUpperCase();
 
   return (
     <>
