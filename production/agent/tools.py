@@ -270,13 +270,55 @@ async def escalate_to_human(input: EscalateInput) -> str:
 async def send_response(input: SendResponseInput) -> str:
     """
     Send formatted response to customer via specified channel.
-    Logs message and simulates channel delivery.
+    Sends real emails via Gmail API and real WhatsApp messages via Twilio.
     Returns message ID and delivery status.
     """
     try:
         message_id = f"MSG-{uuid.uuid4().hex[:8].upper()}"
         sent_at = datetime.now(timezone.utc).isoformat()
-        
+        delivery_status = "delivered"
+
+        to_email = input.metadata.get("customer_email", "")
+        customer_name = input.metadata.get("customer_name", "Customer")
+        subject = input.metadata.get("subject", "Re: Your Support Request")
+        phone = input.metadata.get("phone_number", "")
+
+        if input.channel == 'email' and to_email:
+            # Send real email via Gmail API
+            try:
+                from production.channels.gmail_handler import GmailHandler
+                token_path = os.getenv("GMAIL_TOKEN_PATH") or os.getenv("GMAIL_CREDENTIALS_PATH")
+                if token_path and os.path.exists(token_path):
+                    handler = GmailHandler(token_path=token_path)
+                    await handler.send_new_email(
+                        to_email=to_email,
+                        subject=f"Re: {subject}",
+                        body=input.response_text,
+                        customer_name=customer_name,
+                    )
+                    logger.info(f"✅ Real email sent to {to_email}: {message_id}")
+                else:
+                    logger.warning(f"Gmail token not found — email NOT sent to {to_email}")
+                    delivery_status = "simulated"
+            except Exception as e:
+                logger.error(f"Gmail send error: {e}")
+                delivery_status = "failed"
+
+        elif input.channel == 'whatsapp' and phone:
+            # Send real WhatsApp via Twilio
+            try:
+                from production.channels.whatsapp_handler import WhatsAppHandler
+                handler = WhatsAppHandler()
+                await handler.send_message(phone_number=phone, message=input.response_text)
+                logger.info(f"✅ Real WhatsApp sent to {phone}: {message_id}")
+            except Exception as e:
+                logger.error(f"WhatsApp send error: {e}")
+                delivery_status = "failed"
+
+        else:
+            # Web channel — response is stored in ticket, no external send needed
+            logger.info(f"Web response stored: {message_id}")
+
         message = {
             "message_id": message_id,
             "conversation_id": input.conversation_id,
@@ -285,27 +327,18 @@ async def send_response(input: SendResponseInput) -> str:
             "content": input.response_text,
             "metadata": input.metadata,
             "sent_at": sent_at,
-            "delivery_status": "delivered",
+            "delivery_status": delivery_status,
         }
-        
         _sent_messages_store[message_id] = message
-        
-        # Log based on channel
-        if input.channel == 'email':
-            logger.info(f"Email sent: {message_id}")
-        elif input.channel == 'whatsapp':
-            logger.info(f"WhatsApp sent: {message_id}")
-        elif input.channel in ('web', 'web_form'):
-            logger.info(f"Web response posted: {message_id}")
-        
+
         return json.dumps({
             "success": True,
             "message_id": message_id,
             "channel": input.channel,
             "sent_at": sent_at,
-            "delivery_status": "delivered"
+            "delivery_status": delivery_status,
         })
-    
+
     except Exception as e:
         logger.error(f"Send response error: {e}")
         return json.dumps({"success": False, "error": str(e)})

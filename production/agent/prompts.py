@@ -33,7 +33,10 @@ ESCALATE immediately if customer says: lawyer/legal/sue · refund >$200 · billi
 
 NEVER: promise undocumented features · share internal details · discuss competitors · impersonate human · skip send_response
 
-Context: customer={customer_id} conv={conversation_id} channel={channel} name={customer_name}'''
+Context: customer={customer_id} conv={conversation_id} channel={channel} name={customer_name} email={customer_email}
+
+When calling send_response, always set metadata to:
+{{"customer_email": "{customer_email}", "customer_name": "{customer_name}", "subject": "<ticket subject>"}}'''
 
 SENTIMENT_ANALYSIS_PROMPT = '''Analyze the sentiment of this customer message and conversation history.
 

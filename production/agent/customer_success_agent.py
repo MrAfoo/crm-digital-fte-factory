@@ -102,14 +102,14 @@ class CustomerSuccessAgent:
     def _build_system_prompt(self, context: ConversationContext) -> str:
         """Build system prompt with context variables filled in."""
         prompt = CUSTOMER_SUCCESS_SYSTEM_PROMPT
-        
-        # Fill in template variables
+
         prompt = prompt.replace("{customer_id}", context.customer_id)
         prompt = prompt.replace("{conversation_id}", context.conversation_id)
         prompt = prompt.replace("{channel}", context.channel)
         prompt = prompt.replace("{customer_name}", context.metadata.get("customer_name", "Customer"))
+        prompt = prompt.replace("{customer_email}", context.metadata.get("customer_email", ""))
         prompt = prompt.replace("{ticket_subject}", context.metadata.get("ticket_subject", ""))
-        
+
         return prompt
 
     async def _call_groq_with_tools(
@@ -175,6 +175,9 @@ class CustomerSuccessAgent:
         customer_id: str,
         conversation_id: Optional[str] = None,
         customer_name: str = "Customer",
+        customer_email: str = "",
+        customer_phone: str = "",
+        ticket_subject: str = "",
     ) -> dict:
         """
         Run agent on customer message.
@@ -192,6 +195,9 @@ class CustomerSuccessAgent:
         # Get or create context
         context = self._get_or_create_context(conversation_id, customer_id, channel)
         context.metadata["customer_name"] = customer_name
+        context.metadata["customer_email"] = customer_email
+        context.metadata["customer_phone"] = customer_phone
+        context.metadata["ticket_subject"] = ticket_subject
         
         # Add user message to context and messages list
         context.messages.append({"role": "user", "content": message})
