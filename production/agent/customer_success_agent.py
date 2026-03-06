@@ -202,6 +202,7 @@ class CustomerSuccessAgent:
         
         tool_calls_made = []
         final_response = None
+        send_response_text = None  # Capture text from send_response tool call
         response = None  # Initialize so tokens_used never throws UnboundLocalError
         
         try:
@@ -236,6 +237,25 @@ class CustomerSuccessAgent:
                         
                         logger.info(f"Executing tool: {tool_name}")
                         tool_calls_made.append(tool_name)
+
+                        # Capture send_response text BEFORE executing
+                        # so we have Nova's actual reply regardless of what the
+                        # LLM says afterwards
+                        if tool_name == "send_response" and "response_text" in tool_args:
+                            captured = tool_args["response_text"].strip()
+                            # Only use it if it's a real reply (not a generic template)
+                            generic_phrases = [
+                                "we have received your message",
+                                "a member of our support team will be in touch",
+                                "thank you for reaching out",
+                            ]
+                            is_generic = any(p in captured.lower() for p in generic_phrases)
+                            if not is_generic:
+                                send_response_text = captured
+                            else:
+                                # Keep it as fallback only if nothing better arrives
+                                if not send_response_text:
+                                    send_response_text = captured
                         
                         result = await self._execute_tool(tool_name, tool_args)
                         
@@ -271,6 +291,10 @@ class CustomerSuccessAgent:
                 logger.error(f"Agent run error: {e}")
                 final_response = None
         
+        # If LLM ended without a text response, use what send_response tool captured
+        if not final_response and send_response_text:
+            final_response = send_response_text
+
         # Strip any leaked raw function call text (llama-3.1 quirk)
         if final_response:
             import re as _re
