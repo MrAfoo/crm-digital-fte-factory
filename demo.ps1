@@ -74,69 +74,119 @@ else {
 }
 
 # ============================================================
-#  MINUTE 0:00 - Verify stack is running (Docker or direct)
+#  MINUTE 0:00 - Start all services: API, Next.js, ngrok
 # ============================================================
-Write-Step "MINUTE 0:00" "Verifying NovaDeskAI stack is running"
+Write-Step "MINUTE 0:00" "Starting NovaDeskAI stack"
 Write-Host ""
 
-# Check if API is already up
-$apiAlreadyUp = $false
-try {
-    $healthCheck = Invoke-RestMethod -Uri "$ApiUrl/health" -TimeoutSec 5 -ErrorAction Stop
-    if ($healthCheck.status -eq 'healthy') {
-        $apiAlreadyUp = $true
-        Write-OK "API already running and healthy at $ApiUrl"
-        Write-Info "  Groq   : $($healthCheck.services.groq)"
-        Write-Info "  Kafka  : $($healthCheck.services.kafka)"
-        Write-Info "  DB     : $($healthCheck.services.database)"
-    }
-}
-catch { }
-
-if (-not $apiAlreadyUp) {
-    # Try docker-compose up
-    Write-Info "API not detected - attempting docker-compose up -d ..."
-
-    # Kill any stale process on port 8000 first
-    $stale = (netstat -ano 2>$null | Select-String ":8000 .*LISTENING") |
+# Helper: free a port if something is already listening
+function Free-Port {
+    param([int]$port)
+    $stale = (netstat -ano 2>$null | Select-String ":$port .*LISTENING") |
         ForEach-Object { $_.ToString().Trim().Split()[-1] } | Select-Object -First 1
     if ($stale -match '^\d+$') {
-        Write-Info "Freeing port 8000 (PID $stale)..."
+        Write-Info "Freeing port $port (PID $stale)..."
         taskkill /PID $stale /F 2>$null | Out-Null
         Start-Sleep -Seconds 1
     }
+}
 
-    docker-compose up -d 2>&1 | Out-Null
-    if ($LASTEXITCODE -ne 0) {
-        Write-Warn "docker-compose up failed - trying to start API directly..."
-        Start-Process -FilePath "python" -ArgumentList "production/api/main.py" -NoNewWindow -PassThru | Out-Null
-        Start-Sleep -Seconds 5
-    }
+# --- 1. Start FastAPI backend ---
+$apiAlreadyUp = $false
+try {
+    $hc = Invoke-RestMethod -Uri "$ApiUrl/" -TimeoutSec 3 -ErrorAction Stop
+    $apiAlreadyUp = $true
+    Write-OK "API already running at $ApiUrl"
+} catch { }
 
-    # Wait for API to become healthy
-    Write-Info "Waiting for API to be ready (up to 60s)..."
+if (-not $apiAlreadyUp) {
+    Free-Port 8000
+    Write-Info "Starting FastAPI backend (python production/api/main.py)..."
+    Start-Process powershell -ArgumentList "-NoExit -Command `"cd '$PWD'; python production/api/main.py`"" -WindowStyle Minimized
+    Write-Info "Waiting for API to be ready..."
     $ready = $false
     for ($i = 1; $i -le 20; $i++) {
         Start-Sleep -Seconds 3
         try {
-            $r = Invoke-RestMethod -Uri "$ApiUrl/health" -TimeoutSec 3 -ErrorAction Stop
-            if ($r.status -eq 'healthy') { $ready = $true; break }
+            Invoke-RestMethod -Uri "$ApiUrl/" -TimeoutSec 3 -ErrorAction Stop | Out-Null
+            $ready = $true; break
         } catch { }
-        Write-Host "  ... ${i}0s elapsed - waiting..." -ForegroundColor Yellow
+        Write-Host "  ... ${i}0s elapsed - waiting for API..." -ForegroundColor Yellow
     }
-
-    if ($ready) { Write-OK "Stack is up and healthy" }
-    else { Write-Warn "Stack may not be fully ready - continuing demo anyway" }
+    if ($ready) { Write-OK "FastAPI backend is up at $ApiUrl" }
+    else { Write-Warn "API may not be fully ready - continuing anyway" }
+} else {
+    Write-OK "API already up - skipping start"
 }
 
-# Show running processes serving key ports
+# --- 2. Start Next.js web form ---
+$webAlreadyUp = $false
+try {
+    Invoke-RestMethod -Uri "http://localhost:3000" -TimeoutSec 3 -ErrorAction Stop | Out-Null
+    $webAlreadyUp = $true
+    Write-OK "Next.js web form already running at http://localhost:3000"
+} catch { }
+
+if (-not $webAlreadyUp) {
+    Free-Port 3000
+    Write-Info "Starting Next.js web form (npm run dev)..."
+    Start-Process powershell -ArgumentList "-NoExit -Command `"cd '$PWD\web-form-nextjs'; npm run dev`"" -WindowStyle Minimized
+    Write-Info "Waiting for Next.js to be ready (up to 30s)..."
+    $webReady = $false
+    for ($i = 1; $i -le 10; $i++) {
+        Start-Sleep -Seconds 3
+        try {
+            Invoke-WebRequest -Uri "http://localhost:3000" -TimeoutSec 3 -ErrorAction Stop | Out-Null
+            $webReady = $true; break
+        } catch { }
+        Write-Host "  ... ${i}0s elapsed - waiting for Next.js..." -ForegroundColor Yellow
+    }
+    if ($webReady) { Write-OK "Next.js web form is up at http://localhost:3000" }
+    else { Write-Warn "Next.js may still be compiling - it will be ready shortly" }
+}
+
+# --- 3. Start ngrok tunnel ---
+$ngrokUrl = $null
+try {
+    $tunnels = Invoke-RestMethod -Uri "http://localhost:4040/api/tunnels" -TimeoutSec 3 -ErrorAction Stop
+    $ngrokUrl = ($tunnels.tunnels | Where-Object { $_.proto -eq 'https' } | Select-Object -First 1).public_url
+    if ($ngrokUrl) { Write-OK "ngrok already running: $ngrokUrl" }
+} catch { }
+
+if (-not $ngrokUrl) {
+    if (Get-Command ngrok -ErrorAction SilentlyContinue) {
+        Write-Info "Starting ngrok tunnel on port 8000..."
+        Start-Process powershell -ArgumentList "-NoExit -Command `"ngrok http 8000`"" -WindowStyle Minimized
+        Start-Sleep -Seconds 4
+        try {
+            $tunnels = Invoke-RestMethod -Uri "http://localhost:4040/api/tunnels" -TimeoutSec 5 -ErrorAction Stop
+            $ngrokUrl = ($tunnels.tunnels | Where-Object { $_.proto -eq 'https' } | Select-Object -First 1).public_url
+            if ($ngrokUrl) { Write-OK "ngrok tunnel: $ngrokUrl" }
+            else { Write-Warn "ngrok started but no tunnel URL found yet - check http://localhost:4040" }
+        } catch {
+            Write-Warn "ngrok started but inspector not ready yet - check http://localhost:4040"
+        }
+    } else {
+        Write-Warn "ngrok not found - skipping tunnel (Gmail/WhatsApp webhooks need ngrok)"
+        Write-Info "Install: winget install ngrok.ngrok"
+    }
+}
+
+# Show running services
 Write-Host ""
-Write-Host "  Services on key ports:" -ForegroundColor White
-@(8000, 8001, 8080, 9092) | ForEach-Object {
-    $port = $_
-    $proc = netstat -ano 2>$null | Select-String ":$port .*LISTENING" | Select-Object -First 1
-    if ($proc) { Write-Host "  Port $port  : LISTENING" -ForegroundColor Green }
-    else        { Write-Host "  Port $port  : not in use" -ForegroundColor DarkGray }
+Write-Host "  Running services:" -ForegroundColor White
+@(
+    @{Port=8000; Name="FastAPI API    "},
+    @{Port=3000; Name="Next.js Web    "},
+    @{Port=4040; Name="ngrok Inspector"}
+) | ForEach-Object {
+    $p = $_.Port; $n = $_.Name
+    $listening = netstat -ano 2>$null | Select-String ":$p .*LISTENING" | Select-Object -First 1
+    if ($listening) { Write-Host "  $n  http://localhost:$p" -ForegroundColor Green }
+    else            { Write-Host "  $n  NOT running" -ForegroundColor DarkGray }
+}
+if ($ngrokUrl) {
+    Write-Host "  Public URL        $ngrokUrl" -ForegroundColor Cyan
 }
 
 Pause-Demo 2
@@ -312,11 +362,16 @@ Write-Host "============================================================" -Foreg
 Write-Host ""
 Write-Host "  Live URLs:" -ForegroundColor White
 Write-Host "  ----------------------------------------------------------" -ForegroundColor DarkGray
-Write-Host "  Web Form     http://localhost:3000" -ForegroundColor Cyan
-Write-Host "  API Docs     $ApiUrl/docs" -ForegroundColor Cyan
-Write-Host "  API Health   $ApiUrl/health" -ForegroundColor Cyan
-Write-Host "  Kafka UI     http://localhost:8080" -ForegroundColor Cyan
-Write-Host "  MCP Tools    http://localhost:8001/tools" -ForegroundColor Cyan
+Write-Host "  Web Form       http://localhost:3000" -ForegroundColor Cyan
+Write-Host "  API Docs       $ApiUrl/docs" -ForegroundColor Cyan
+Write-Host "  API Health     $ApiUrl/health" -ForegroundColor Cyan
+Write-Host "  ngrok Inspector  http://localhost:4040" -ForegroundColor Cyan
+if ($ngrokUrl) {
+    Write-Host "  Public URL     $ngrokUrl" -ForegroundColor Green
+    Write-Host "  Gmail Webhook  $ngrokUrl/webhook/gmail" -ForegroundColor Green
+    Write-Host "  WA Webhook     $ngrokUrl/webhook/whatsapp" -ForegroundColor Green
+}
+Write-Host "  Kafka UI       http://localhost:8080" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "  Minute 4:30 - Send a REAL email to your configured Gmail address" -ForegroundColor Yellow
 Write-Host "  and watch Nova auto-reply live in the logs:" -ForegroundColor Yellow
