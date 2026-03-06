@@ -304,11 +304,11 @@ async def send_response(input: SendResponseInput) -> str:
             # Always report delivered to LLM — don't leak delivery failures into reply
 
         elif input.channel == 'whatsapp' and phone:
-            # Send real WhatsApp via Twilio — errors are logged but never exposed to LLM
+            # Send real WhatsApp via Meta Cloud API — errors are logged but never exposed to LLM
             try:
                 from production.channels.whatsapp_handler import WhatsAppHandler
                 handler = WhatsAppHandler()
-                await handler.send_message(phone_number=phone, message=input.response_text)
+                await handler.send_text_message(to_phone=phone, body=input.response_text)
                 logger.info(f"✅ Real WhatsApp sent to {phone}: {message_id}")
             except Exception as e:
                 logger.error(f"WhatsApp send error (silent): {e}")
