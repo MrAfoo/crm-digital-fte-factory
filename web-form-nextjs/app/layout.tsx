@@ -5,8 +5,8 @@ import './globals.css';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'NovaDeskAI - Support Form',
-  description: 'Submit support tickets and track their status with NovaDeskAI',
+  title: 'NovaDeskAI Support',
+  description: 'AI-powered customer support',
 };
 
 export const viewport: Viewport = {
@@ -21,15 +21,13 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
+      <head>
+        <meta name="theme-color" content="#0a0a0f" />
+      </head>
       <body className={inter.className}>
-        <div className="animated-bg">
-          <div className="orb orb-primary" />
-          <div className="orb orb-accent" />
-          <div className="orb orb-secondary" />
-        </div>
-        <main className="relative z-10">
+        <div className="relative z-10">
           {children}
-        </main>
+        </div>
       </body>
     </html>
   );

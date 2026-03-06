@@ -1,260 +1,362 @@
 'use client';
 
-import { useState } from 'react';
-
-// Type definitions
-interface ConversationMessage {
-  id: string;
-  author: string;
-  message: string;
-  timestamp: string;
-}
+import { useState, useEffect, useRef } from 'react';
+import { gsap } from 'gsap';
 
 interface Ticket {
   id: string;
-  status: string;
+  status: 'open' | 'in_progress' | 'resolved' | 'escalated';
   subject: string;
-  createdDate: string;
-  lastUpdated: string;
-  priority: string;
+  created_at: string;
   channel: string;
-  conversation: ConversationMessage[];
-}
-
-interface ApiError {
-  message: string;
+  response?: string;
 }
 
 interface TicketStatusProps {
-  initialTicketId?: string;
+  ticketId: string;
 }
 
-const STATUS_COLORS: Record<string, string> = {
-  open: 'bg-nova-primary',
-  in_progress: 'bg-yellow-500',
-  resolved: 'bg-green-500',
-  closed: 'bg-gray-500',
+const API_URL = process.env.NEXT_PUBLIC_API_URL
+  ? `${process.env.NEXT_PUBLIC_API_URL}/api/tickets`
+  : 'http://localhost:8000/api/tickets';
+
+const getStatusColor = (status: string): { bg: string; text: string; label: string } => {
+  switch (status) {
+    case 'open':
+      return { bg: 'rgba(59, 130, 246, 0.15)', text: '#3b82f6', label: 'Open' };
+    case 'in_progress':
+      return { bg: 'rgba(234, 179, 8, 0.15)', text: '#eab308', label: 'In Progress' };
+    case 'resolved':
+      return { bg: 'rgba(16, 185, 129, 0.15)', text: '#10b981', label: 'Resolved' };
+    case 'escalated':
+      return { bg: 'rgba(244, 63, 94, 0.15)', text: '#f43f5e', label: 'Escalated' };
+    default:
+      return { bg: 'rgba(255, 255, 255, 0.08)', text: 'rgba(255,255,255,0.6)', label: status };
+  }
 };
 
-const PRIORITY_COLORS: Record<string, string> = {
-  low: 'text-blue-400',
-  medium: 'text-yellow-400',
-  high: 'text-nova-accent',
-  urgent: 'text-red-500',
+const formatDate = (dateStr: string): string => {
+  try {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  } catch {
+    return dateStr;
+  }
 };
 
-export default function TicketStatus({ initialTicketId = '' }: TicketStatusProps) {
-  const [, setTicketId] = useState<string>(initialTicketId);
-  const [searchInput, setSearchInput] = useState<string>(initialTicketId);
+export default function TicketStatus({ ticketId }: TicketStatusProps) {
   const [ticket, setTicket] = useState<Ticket | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string>('');
-  const [hasSearched, setHasSearched] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const cardRef = useRef<HTMLDivElement>(null);
 
-  const handleSearch = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-
-    if (!searchInput.trim()) {
-      setError('Please enter a ticket ID');
-      return;
-    }
-
-    setIsLoading(true);
-    setError('');
-    setTicket(null);
-    setHasSearched(true);
-
-    try {
-      const response = await fetch(
-        `http://localhost:8000/api/tickets/${searchInput.trim()}`,
-        {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+  useEffect(() => {
+    const fetchTicket = async () => {
+      try {
+        setLoading(true);
+        const res = await fetch(`${API_URL}/${ticketId}`);
+        if (!res.ok) {
+          throw new Error('Ticket not found');
         }
-      );
-
-      if (!response.ok) {
-        const errorData: ApiError = await response.json().catch(() => ({
-          message: 'Ticket not found',
-        }));
-        throw new Error(errorData.message || 'Ticket not found');
+        const data = await res.json();
+        setTicket(data);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load ticket');
+      } finally {
+        setLoading(false);
       }
+    };
 
-      const data: Ticket = await response.json();
-      setTicket(data);
-      setTicketId(searchInput.trim());
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch ticket';
-      setError(errorMessage);
-      setTicket(null);
-    } finally {
-      setIsLoading(false);
+    if (ticketId) {
+      fetchTicket();
     }
-  };
+  }, [ticketId]);
 
-  const handleReset = () => {
-    setTicketId('');
-    setSearchInput('');
-    setTicket(null);
-    setError('');
-    setHasSearched(false);
-  };
-
-  const formatDate = (dateString: string): string => {
-    try {
-      const date = new Date(dateString);
-      return date.toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      });
-    } catch {
-      return dateString;
+  // GSAP entrance animation
+  useEffect(() => {
+    if (!loading && cardRef.current) {
+      gsap.fromTo(
+        cardRef.current,
+        { opacity: 0, y: 30 },
+        { opacity: 1, y: 0, duration: 0.6, ease: 'power3.out' }
+      );
     }
-  };
+  }, [loading]);
+
+  // Loading state
+  if (loading) {
+    return (
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: 300,
+      }}>
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: 16,
+        }}>
+          <div
+            className="spinner"
+            style={{
+              width: 48,
+              height: 48,
+              borderRadius: '50%',
+              border: '3px solid rgba(255,255,255,0.1)',
+              borderTopColor: '#6C63FF',
+            }}
+          />
+          <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 14 }}>
+            Loading ticket details...
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div ref={cardRef} className="glass rounded-3xl p-10 text-center" style={{ opacity: 0 }}>
+        <div style={{
+          width: 80,
+          height: 80,
+          borderRadius: '50%',
+          margin: '0 auto 24px',
+          background: 'rgba(244,63,94,0.12)',
+          border: '2px solid rgba(244,63,94,0.35)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: 36,
+        }}>
+          ⚠️
+        </div>
+        <h2 style={{
+          fontSize: 24,
+          fontWeight: 700,
+          color: '#fff',
+          marginBottom: 8,
+        }}>
+          Ticket Not Found
+        </h2>
+        <p style={{
+          color: 'rgba(255,255,255,0.5)',
+          marginBottom: 28,
+          fontSize: 14,
+          maxWidth: 320,
+          margin: '0 auto 28px',
+        }}>
+          {error}
+        </p>
+        <a
+          href="/"
+          className="nova-btn"
+          style={{ textDecoration: 'none', display: 'inline-flex' }}
+        >
+          ← Back to Support
+        </a>
+      </div>
+    );
+  }
+
+  if (!ticket) {
+    return null;
+  }
+
+  const statusColor = getStatusColor(ticket.status);
 
   return (
-    <div className="w-full">
-      {/* Search Form */}
-      <form onSubmit={handleSearch} className="glass rounded-2xl p-8 mb-6 animate-slide-up">
-        <h2 className="text-2xl font-bold text-white mb-6">Check Ticket Status</h2>
-        <div className="flex flex-col sm:flex-row gap-4">
-          <input
-            type="text"
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value.toUpperCase())}
-            placeholder="Enter ticket ID (e.g., TKT-12345)"
-            className="flex-1 px-4 py-3 rounded-lg bg-nova-dark bg-opacity-50 border-2 border-nova-primary border-opacity-30 text-white placeholder-gray-500 focus:border-nova-primary focus:bg-opacity-70 focus:shadow-lg focus:shadow-nova-primary/20"
-            disabled={isLoading}
-          />
-          <button
-            type="submit"
-            disabled={isLoading}
-            className="bg-gradient-to-r from-nova-primary to-nova-accent hover:shadow-lg hover:shadow-nova-primary/50 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold py-3 px-8 rounded-lg transition-all duration-300 whitespace-nowrap"
-          >
-            {isLoading ? (
-              <svg className="w-5 h-5 spinner inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-              </svg>
-            ) : (
-              'Search'
-            )}
-          </button>
+    <div ref={cardRef} className="glass rounded-3xl p-8 md:p-10" style={{ opacity: 0 }}>
+      {/* Header with status badge */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
+        marginBottom: 24,
+        gap: 16,
+        flexWrap: 'wrap',
+      }}>
+        <div>
+          <p style={{
+            fontSize: 11,
+            fontWeight: 600,
+            color: 'rgba(255,255,255,0.4)',
+            textTransform: 'uppercase',
+            letterSpacing: 0.8,
+            marginBottom: 6,
+          }}>
+            Ticket ID
+          </p>
+          <p style={{
+            fontSize: 28,
+            fontWeight: 800,
+            color: '#fff',
+            fontFamily: "'Courier New', monospace",
+            letterSpacing: 2,
+          }}>
+            {ticket.id}
+          </p>
         </div>
-      </form>
+        <div
+          style={{
+            background: statusColor.bg,
+            border: `1.5px solid ${statusColor.text}`,
+            color: statusColor.text,
+            padding: '8px 16px',
+            borderRadius: 12,
+            fontSize: 13,
+            fontWeight: 700,
+            letterSpacing: 0.3,
+          }}
+        >
+          {statusColor.label}
+        </div>
+      </div>
 
-      {/* Error State */}
-      {error && hasSearched && (
-        <div className="glass rounded-2xl p-8 mb-6 animate-slide-up border-l-4 border-nova-accent">
-          <div className="flex items-start gap-4">
-            <svg className="w-6 h-6 text-nova-accent flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4v.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <div className="flex-1">
-              <h3 className="text-lg font-semibold text-white mb-2">Not Found</h3>
-              <p className="text-gray-300">{error}</p>
-              <button
-                onClick={handleReset}
-                className="mt-4 text-nova-primary hover:text-nova-accent transition-colors text-sm font-medium"
-              >
-                Try Another Ticket ID
-              </button>
-            </div>
+      {/* Details Grid */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: '1fr 1fr',
+        gap: 24,
+        marginBottom: 28,
+      }} className="sm-stack">
+        {/* Subject */}
+        <div>
+          <p style={{
+            fontSize: 11,
+            fontWeight: 600,
+            color: 'rgba(255,255,255,0.4)',
+            textTransform: 'uppercase',
+            letterSpacing: 0.8,
+            marginBottom: 8,
+          }}>
+            Subject
+          </p>
+          <p style={{
+            fontSize: 14,
+            color: 'rgba(255,255,255,0.9)',
+            lineHeight: 1.5,
+          }}>
+            {ticket.subject}
+          </p>
+        </div>
+
+        {/* Channel */}
+        <div>
+          <p style={{
+            fontSize: 11,
+            fontWeight: 600,
+            color: 'rgba(255,255,255,0.4)',
+            textTransform: 'uppercase',
+            letterSpacing: 0.8,
+            marginBottom: 8,
+          }}>
+            Communication Channel
+          </p>
+          <p style={{
+            fontSize: 14,
+            color: 'rgba(255,255,255,0.9)',
+          }}>
+            {ticket.channel.charAt(0).toUpperCase() + ticket.channel.slice(1)}
+          </p>
+        </div>
+
+        {/* Created At */}
+        <div>
+          <p style={{
+            fontSize: 11,
+            fontWeight: 600,
+            color: 'rgba(255,255,255,0.4)',
+            textTransform: 'uppercase',
+            letterSpacing: 0.8,
+            marginBottom: 8,
+          }}>
+            Created At
+          </p>
+          <p style={{
+            fontSize: 14,
+            color: 'rgba(255,255,255,0.9)',
+          }}>
+            {formatDate(ticket.created_at)}
+          </p>
+        </div>
+      </div>
+
+      {/* Response Section */}
+      {ticket.response && (
+        <div style={{
+          background: 'rgba(108, 99, 255, 0.08)',
+          border: '1.5px solid rgba(108, 99, 255, 0.25)',
+          borderRadius: 16,
+          padding: 20,
+          marginBottom: 24,
+        }}>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            marginBottom: 12,
+          }}>
+            <span style={{ fontSize: 18 }}>🤖</span>
+            <p style={{
+              fontSize: 12,
+              fontWeight: 700,
+              color: '#a78bfa',
+              textTransform: 'uppercase',
+              letterSpacing: 0.5,
+            }}>
+              Nova AI Response
+            </p>
           </div>
+          <p style={{
+            fontSize: 14,
+            color: 'rgba(255,255,255,0.85)',
+            lineHeight: 1.6,
+          }}>
+            {ticket.response}
+          </p>
         </div>
       )}
 
-      {/* Ticket Details */}
-      {ticket && (
-        <div className="space-y-6 animate-slide-up">
-          {/* Header */}
-          <div className="glass rounded-2xl p-8">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
-              <div>
-                <h3 className="text-3xl font-bold text-white font-mono">{ticket.id}</h3>
-                <p className="text-gray-400 text-sm mt-1">{ticket.subject}</p>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className={`w-3 h-3 rounded-full ${STATUS_COLORS[ticket.status.toLowerCase()] || 'bg-gray-500'}`} />
-                <span className="text-white font-semibold capitalize">{ticket.status}</span>
-              </div>
-            </div>
-
-            {/* Metadata */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div>
-                <p className="text-xs text-gray-400 uppercase tracking-wider mb-2">Priority</p>
-                <p className={`font-semibold capitalize ${PRIORITY_COLORS[ticket.priority.toLowerCase()] || 'text-gray-300'}`}>
-                  {ticket.priority}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-gray-400 uppercase tracking-wider mb-2">Channel</p>
-                <p className="text-gray-300 font-semibold capitalize">{ticket.channel}</p>
-              </div>
-              <div>
-                <p className="text-xs text-gray-400 uppercase tracking-wider mb-2">Created</p>
-                <p className="text-gray-300 font-semibold text-sm">{formatDate(ticket.createdDate)}</p>
-              </div>
-              <div>
-                <p className="text-xs text-gray-400 uppercase tracking-wider mb-2">Last Updated</p>
-                <p className="text-gray-300 font-semibold text-sm">{formatDate(ticket.lastUpdated)}</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Conversation History */}
-          {ticket.conversation && ticket.conversation.length > 0 && (
-            <div className="glass rounded-2xl p-8">
-              <h4 className="text-xl font-bold text-white mb-6">Conversation History</h4>
-              <div className="space-y-4 max-h-96 overflow-y-auto">
-                {ticket.conversation.map((msg, index) => (
-                  <div
-                    key={msg.id || index}
-                    className="bg-nova-dark bg-opacity-50 rounded-lg p-4 border border-nova-primary border-opacity-20"
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <p className="font-semibold text-white">{msg.author}</p>
-                      <p className="text-xs text-gray-400">{formatDate(msg.timestamp)}</p>
-                    </div>
-                    <p className="text-gray-300">{msg.message}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* No Conversation */}
-          {(!ticket.conversation || ticket.conversation.length === 0) && (
-            <div className="glass rounded-2xl p-8 text-center">
-              <p className="text-gray-400">No conversation history yet. We&apos;ll update you soon.</p>
-            </div>
-          )}
-
-          {/* Reset Button */}
-          <button
-            onClick={handleReset}
-            className="w-full border border-nova-primary text-nova-primary hover:bg-nova-primary hover:bg-opacity-10 font-semibold py-3 px-6 rounded-lg transition-all duration-300"
-          >
-            Check Another Ticket
-          </button>
-        </div>
-      )}
-
-      {/* Empty State */}
-      {!ticket && !error && hasSearched && (
-        <div className="glass rounded-2xl p-12 text-center animate-slide-up">
-          <svg className="w-12 h-12 text-gray-500 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-          </svg>
-          <p className="text-gray-400">Loading ticket information...</p>
-        </div>
-      )}
+      {/* Action Buttons */}
+      <div style={{
+        display: 'flex',
+        gap: 12,
+        flexDirection: 'column',
+        marginTop: 28,
+      }}>
+        <a
+          href="/"
+          className="nova-btn"
+          style={{
+            textDecoration: 'none',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          ← Submit Another Ticket
+        </a>
+        <button
+          className="nova-btn"
+          style={{
+            background: 'rgba(255,255,255,0.07)',
+            border: '1px solid rgba(255,255,255,0.1)',
+          }}
+          onClick={() => window.location.reload()}
+        >
+          🔄 Refresh Status
+        </button>
+      </div>
     </div>
   );
 }

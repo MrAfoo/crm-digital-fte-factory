@@ -50,7 +50,7 @@ export default function TicketPage({ params }: TicketPageProps) {
         </div>
 
         {/* Ticket Status Component */}
-        <TicketStatus initialTicketId={ticketId} />
+        <TicketStatus ticketId={ticketId} />
       </div>
     </div>
   );

@@ -1,56 +1,100 @@
+'use client';
+
 import SupportForm from '@/components/SupportForm';
 
 export default function Home() {
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px 16px' }}>
-      <div style={{ width: '100%', maxWidth: 580 }}>
+    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 16px' }}>
+      <div style={{ width: '100%', maxWidth: 640 }}>
 
-        {/* Header */}
-        <div style={{ textAlign: 'center', marginBottom: 40 }}>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-            <div style={{
-              width: 48, height: 48, borderRadius: 14,
-              background: 'linear-gradient(135deg, #6C63FF, #a78bfa)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 24, boxShadow: '0 8px 24px rgba(108,99,255,0.4)',
-            }}>🤖</div>
-            <h1 style={{
-              fontSize: 32, fontWeight: 800, color: '#fff', letterSpacing: '-0.5px',
-              background: 'linear-gradient(135deg, #6C63FF, #a78bfa)',
-              WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
-            }}>
-              NovaDeskAI
-            </h1>
-          </div>
-          <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 14, marginBottom: 12 }}>
-            AI-Powered Customer Success · Available 24/7
-          </p>
+        {/* Hero Section */}
+        <div style={{ textAlign: 'center', marginBottom: 48 }}>
+          {/* Badge */}
           <div style={{
-            display: 'inline-flex', alignItems: 'center', gap: 6,
-            background: 'rgba(16,185,129,0.12)', color: '#10b981',
-            border: '1px solid rgba(16,185,129,0.25)', borderRadius: 100,
-            padding: '4px 14px', fontSize: 11, fontWeight: 600, letterSpacing: 0.3,
+            display: 'inline-flex', alignItems: 'center', gap: 8,
+            background: 'rgba(168, 85, 247, 0.15)', color: '#c084fc',
+            border: '1px solid rgba(168, 85, 247, 0.3)', borderRadius: 100,
+            padding: '6px 16px', fontSize: 12, fontWeight: 600, letterSpacing: 0.3,
+            marginBottom: 24
           }}>
-            <span style={{
-              width: 6, height: 6, borderRadius: '50%', background: '#10b981',
-              animation: 'blink 2s ease-in-out infinite', display: 'inline-block',
-            }}/>
-            All systems operational
+            <span>⚡</span>
+            Powered by Nova AI
+          </div>
+
+          {/* H1 with gradient */}
+          <h1 style={{
+            fontSize: 'clamp(32px, 6vw, 56px)',
+            fontWeight: 900,
+            background: 'linear-gradient(135deg, #a78bfa 0%, #c4b5fd 100%)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            backgroundClip: 'text',
+            marginBottom: 16,
+            letterSpacing: '-0.8px',
+          }}>
+            Customer Support
+          </h1>
+
+          {/* Subtitle */}
+          <p style={{
+            fontSize: 16,
+            color: 'rgba(255, 255, 255, 0.6)',
+            marginBottom: 32,
+            maxWidth: 500,
+            margin: '0 auto 32px',
+            lineHeight: 1.6,
+          }}>
+            Get instant AI-powered support. Nova responds in under 2 minutes.
+          </p>
+
+          {/* Feature Pills */}
+          <div style={{
+            display: 'flex',
+            gap: 12,
+            justifyContent: 'center',
+            flexWrap: 'wrap',
+            marginBottom: 48,
+          }}>
+            {[
+              { icon: '🤖', text: 'AI-Powered' },
+              { icon: '⚡', text: '< 2 min reply' },
+              { icon: '🔒', text: 'Secure' },
+            ].map((feature, idx) => (
+              <div
+                key={idx}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  background: 'rgba(255, 255, 255, 0.06)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  borderRadius: 12,
+                  padding: '8px 14px',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: 'rgba(255, 255, 255, 0.8)',
+                }}
+              >
+                <span>{feature.icon}</span>
+                {feature.text}
+              </div>
+            ))}
           </div>
         </div>
 
-        {/* Form */}
+        {/* Form Component */}
         <SupportForm />
 
         {/* Footer */}
         <div style={{
-          marginTop: 24, textAlign: 'center', fontSize: 11,
-          color: 'rgba(255,255,255,0.2)', display: 'flex',
-          justifyContent: 'space-between', alignItems: 'center',
+          marginTop: 40,
+          textAlign: 'center',
+          fontSize: 13,
+          color: 'rgba(255, 255, 255, 0.35)',
         }}>
-          <span>Powered by <span style={{ color: '#6C63FF', fontWeight: 600 }}>NovaDeskAI</span></span>
-          <span>⚡ Avg reply &lt; 2 min · 99.9% uptime</span>
+          © 2026 NovaDeskAI · Built with ❤️ and AI
         </div>
+
       </div>
     </div>
   );

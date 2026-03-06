@@ -43,43 +43,6 @@ Could you please help me resolve this?
 
 Best regards,
 Jane Smith"""
-    },
-    {
-        "id": "002",
-        "to": "support@novadesk.ai",
-        "from_name": "Michael Torres",
-        "from_email": "michael@startup.io",
-        "subject": "Billing question — overcharged this month",
-        "body": """Hello,
-
-I noticed my invoice this month is $299 instead of the usual $149.
-I'm on the Growth plan and haven't changed anything.
-
-I believe this is an error. Can you please review my account and
-issue a correction?
-
-Invoice #INV-2026-0245
-
-Thanks,
-Michael Torres"""
-    },
-    {
-        "id": "003",
-        "to": "support@novadesk.ai",
-        "from_name": "Sarah Chen",
-        "from_email": "sarah@acme.com",
-        "subject": "URGENT: Bot completely down - affecting customers",
-        "body": """This is absolutely unacceptable!
-
-Our NovaBot has been DOWN for 3 hours and we're losing customers.
-We pay $499/month for the Scale plan and this is the THIRD outage
-this month. I want to speak to a manager IMMEDIATELY.
-
-If this isn't resolved in 1 hour, we're cancelling our subscription
-and I will be contacting our legal team.
-
-Sarah Chen
-VP Operations, ACME Corp"""
     }
 ]
 

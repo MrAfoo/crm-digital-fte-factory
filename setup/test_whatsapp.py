@@ -34,48 +34,6 @@ SAMPLE_MESSAGES = [
                 }]
             }]
         }
-    },
-    {
-        "description": "Angry customer (escalation trigger)",
-        "payload": {
-            "object": "whatsapp_business_account",
-            "entry": [{
-                "changes": [{
-                    "field": "messages",
-                    "value": {
-                        "messages": [{
-                            "id": "wamid.test002",
-                            "from": "15559876543",
-                            "timestamp": "1709000001",
-                            "type": "text",
-                            "text": {"body": "This is ridiculous! Your bot broke my integration and I want to talk to a human NOW!"}
-                        }],
-                        "contacts": [{"profile": {"name": "Bob Smith"}, "wa_id": "15559876543"}]
-                    }
-                }]
-            }]
-        }
-    },
-    {
-        "description": "Human agent request",
-        "payload": {
-            "object": "whatsapp_business_account",
-            "entry": [{
-                "changes": [{
-                    "field": "messages",
-                    "value": {
-                        "messages": [{
-                            "id": "wamid.test003",
-                            "from": "15557654321",
-                            "timestamp": "1709000002",
-                            "type": "text",
-                            "text": {"body": "human"}
-                        }],
-                        "contacts": [{"profile": {"name": "Carol White"}, "wa_id": "15557654321"}]
-                    }
-                }]
-            }]
-        }
     }
 ]
 
