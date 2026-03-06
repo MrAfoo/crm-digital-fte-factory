@@ -30,13 +30,9 @@ export default function AnimatedBackground() {
           50%  { transform: translate(-8%, -8%) rotate(-25deg) scale(1.2); }
           100% { transform: translate(0%, 0%) rotate(0deg) scale(1); }
         }
-        @keyframes shimmer {
-          0%, 100% { opacity: 0.6; }
-          50%       { opacity: 1; }
-        }
         @keyframes gridFade {
-          0%, 100% { opacity: 0.12; }
-          50%       { opacity: 0.06; }
+          0%, 100% { opacity: 0.06; }
+          50%       { opacity: 0.03; }
         }
       `}</style>
 
@@ -49,86 +45,78 @@ export default function AnimatedBackground() {
         background: '#07070f',
       }}>
 
-        {/* Aurora wave 1 — large violet blob top-left */}
+        {/* Wave 1 — deep violet, top-left */}
         <div style={{
           position: 'absolute',
-          top: '-20%',
-          left: '-10%',
+          top: '-25%',
+          left: '-15%',
           width: '70vw',
           height: '70vw',
           borderRadius: '40% 60% 70% 30% / 40% 50% 60% 50%',
-          background: 'radial-gradient(ellipse at 50% 50%, rgba(108,63,255,0.55) 0%, rgba(108,63,255,0.2) 40%, transparent 70%)',
-          filter: 'blur(60px)',
-          animation: 'aurora1 18s ease-in-out infinite',
+          background: 'radial-gradient(ellipse at 50% 50%, rgba(72,40,180,0.18) 0%, rgba(72,40,180,0.06) 50%, transparent 70%)',
+          filter: 'blur(80px)',
+          animation: 'aurora1 22s ease-in-out infinite',
         }} />
 
-        {/* Aurora wave 2 — indigo blob bottom-right */}
+        {/* Wave 2 — indigo, bottom-right */}
         <div style={{
           position: 'absolute',
-          bottom: '-15%',
-          right: '-10%',
+          bottom: '-20%',
+          right: '-15%',
           width: '65vw',
           height: '65vw',
           borderRadius: '60% 40% 30% 70% / 50% 60% 40% 50%',
-          background: 'radial-gradient(ellipse at 50% 50%, rgba(79,70,229,0.50) 0%, rgba(79,70,229,0.18) 40%, transparent 70%)',
-          filter: 'blur(70px)',
-          animation: 'aurora2 24s ease-in-out infinite',
+          background: 'radial-gradient(ellipse at 50% 50%, rgba(49,46,129,0.16) 0%, rgba(49,46,129,0.05) 50%, transparent 70%)',
+          filter: 'blur(90px)',
+          animation: 'aurora2 28s ease-in-out infinite',
         }} />
 
-        {/* Aurora wave 3 — violet/pink center */}
+        {/* Wave 3 — purple, center */}
         <div style={{
           position: 'absolute',
-          top: '30%',
-          left: '25%',
+          top: '35%',
+          left: '20%',
+          width: '55vw',
+          height: '55vw',
+          borderRadius: '50% 50% 40% 60% / 60% 40% 60% 40%',
+          background: 'radial-gradient(ellipse at 50% 50%, rgba(88,28,135,0.14) 0%, rgba(88,28,135,0.04) 50%, transparent 70%)',
+          filter: 'blur(100px)',
+          animation: 'aurora3 35s ease-in-out infinite',
+        }} />
+
+        {/* Wave 4 — dark blue, top-right */}
+        <div style={{
+          position: 'absolute',
+          top: '-15%',
+          right: '0%',
           width: '50vw',
           height: '50vw',
-          borderRadius: '50% 50% 40% 60% / 60% 40% 60% 40%',
-          background: 'radial-gradient(ellipse at 50% 50%, rgba(167,59,255,0.35) 0%, rgba(139,92,246,0.15) 40%, transparent 70%)',
-          filter: 'blur(80px)',
-          animation: 'aurora3 30s ease-in-out infinite',
+          borderRadius: '30% 70% 60% 40% / 50% 40% 60% 50%',
+          background: 'radial-gradient(ellipse at 50% 50%, rgba(30,27,75,0.20) 0%, rgba(30,27,75,0.06) 50%, transparent 70%)',
+          filter: 'blur(70px)',
+          animation: 'aurora4 24s ease-in-out infinite',
         }} />
 
-        {/* Aurora wave 4 — deep blue accent top-right */}
+        {/* Wave 5 — muted magenta, bottom-left */}
         <div style={{
           position: 'absolute',
-          top: '-10%',
-          right: '5%',
+          bottom: '0%',
+          left: '0%',
           width: '45vw',
           height: '45vw',
-          borderRadius: '30% 70% 60% 40% / 50% 40% 60% 50%',
-          background: 'radial-gradient(ellipse at 50% 50%, rgba(56,189,248,0.22) 0%, rgba(56,189,248,0.08) 40%, transparent 70%)',
-          filter: 'blur(60px)',
-          animation: 'aurora4 20s ease-in-out infinite',
-        }} />
-
-        {/* Aurora wave 5 — warm purple bottom-left */}
-        <div style={{
-          position: 'absolute',
-          bottom: '5%',
-          left: '5%',
-          width: '40vw',
-          height: '40vw',
           borderRadius: '70% 30% 50% 50% / 40% 60% 40% 60%',
-          background: 'radial-gradient(ellipse at 50% 50%, rgba(192,38,211,0.28) 0%, rgba(192,38,211,0.10) 40%, transparent 70%)',
-          filter: 'blur(55px)',
-          animation: 'aurora1 22s ease-in-out -8s infinite',
+          background: 'radial-gradient(ellipse at 50% 50%, rgba(76,29,149,0.12) 0%, rgba(76,29,149,0.04) 50%, transparent 70%)',
+          filter: 'blur(85px)',
+          animation: 'aurora1 26s ease-in-out -10s infinite',
         }} />
 
-        {/* Subtle shimmer overlay */}
+        {/* Very subtle dot grid */}
         <div style={{
           position: 'absolute',
           inset: 0,
-          background: 'linear-gradient(135deg, rgba(108,63,255,0.04) 0%, transparent 50%, rgba(79,70,229,0.04) 100%)',
-          animation: 'shimmer 8s ease-in-out infinite',
-        }} />
-
-        {/* Dot grid */}
-        <div style={{
-          position: 'absolute',
-          inset: 0,
-          backgroundImage: 'radial-gradient(rgba(167,139,250,0.25) 1px, transparent 1px)',
-          backgroundSize: '44px 44px',
-          animation: 'gridFade 6s ease-in-out infinite',
+          backgroundImage: 'radial-gradient(rgba(139,92,246,0.12) 1px, transparent 1px)',
+          backgroundSize: '48px 48px',
+          animation: 'gridFade 8s ease-in-out infinite',
         }} />
 
       </div>
