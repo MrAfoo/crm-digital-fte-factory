@@ -342,6 +342,24 @@ def _get_estimated_response_time(channel: str) -> str:
     return response_times.get(channel, "2-4 hours")
 
 
+# Patterns that indicate a leaked internal/tool response (not a real reply)
+_INTERNAL_REPLY_PATTERNS = [
+    r"TKT-[A-F0-9]{8}",          # ticket IDs
+    r"ESC-[A-F0-9]{8}",          # escalation IDs
+    r"MSG-[A-F0-9]{8}",          # message IDs
+    r'"success":\s*true',        # raw JSON
+    r"ticket created.*escalation initiated",
+    r"need more help\? chat with our team",
+]
+
+def _is_internal_reply(text: str) -> bool:
+    import re as _re
+    if not text:
+        return True
+    t = text.lower()
+    return any(_re.search(p, t, _re.IGNORECASE) for p in _INTERNAL_REPLY_PATTERNS)
+
+
 async def _process_web_ticket(ticket_id: str, message: str, channel: str, customer_id: str):
     """Background task: run agent on web ticket and store Nova's reply."""
     try:
@@ -351,6 +369,17 @@ async def _process_web_ticket(ticket_id: str, message: str, channel: str, custom
         reply = result.get("formatted_response") or result.get("response", "")
         escalated = result.get("escalated", False)
         sentiment = result.get("sentiment", "neutral")
+
+        # Reject internal/tool summaries leaking into customer reply
+        if _is_internal_reply(reply):
+            logger.warning(f"Rejected internal reply for {ticket_id}: {reply[:100]}")
+            reply = (
+                "Thank you for contacting NovaDeskAI! I've reviewed your request and "
+                "our support team will get back to you with a detailed response shortly. "
+                "If your issue is urgent, please reply with 'URGENT' and we'll prioritize it."
+            )
+            escalated = False  # don't mark as escalated if it was accidental
+
         if ticket_id in tickets_db:
             tickets_db[ticket_id]["nova_response"] = reply
             tickets_db[ticket_id]["status"] = "escalated" if escalated else "resolved"
