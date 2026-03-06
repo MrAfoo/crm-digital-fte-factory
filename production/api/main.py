@@ -572,17 +572,25 @@ async def whatsapp_webhook_receive(
         for msg in normalized_messages:
             if hasattr(app.state, "agent") and app.state.agent:
                 try:
-                    customer_id = f"wa_{msg.get('customer_phone', 'unknown').replace('+', '')}"
+                    phone = msg.get("customer_phone", "unknown")
+                    customer_id = f"wa_{phone.replace('+', '')}"
+                    customer_name = msg.get("customer_name", "Customer")
                     result = await app.state.agent.run(
                         msg.get("content", ""),
                         "whatsapp",
                         customer_id,
                         None,
+                        customer_name=customer_name,
+                        customer_phone=phone,
                     )
                     # Send reply back via WhatsApp
                     reply = result.get("formatted_response") or result.get("response", "")
-                    if reply and msg.get("customer_phone"):
-                        await handler.send_text_message(msg["customer_phone"], reply)
+                    if reply and phone:
+                        send_result = await handler.send_text_message(phone, reply)
+                        if "error" in send_result:
+                            logger.error(f"WhatsApp send failed: {send_result['error']}")
+                        else:
+                            logger.info(f"✅ WhatsApp reply sent to {phone}")
                     logger.info(f"WhatsApp message processed for {customer_id}, escalated={result.get('escalated')}")
                 except Exception as e:
                     logger.error(f"Error processing WhatsApp message: {e}", exc_info=True)
