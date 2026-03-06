@@ -78,11 +78,8 @@ class ChannelFormatter:
         cleaned = self._strip_existing_greeting(response)
         cleaned = re.sub(r'Best regards,?\s*.*$', '', cleaned, flags=re.DOTALL).strip()
         
-        # Add CTA
-        formatted = f"{cleaned}\n\nNeed more help? Chat with our team →"
-        
         # Enforce length limit
-        return self.truncate_to_limit(formatted, 'web_form')
+        return self.truncate_to_limit(cleaned, 'web_form')
 
     def _strip_existing_greeting(self, text: str) -> str:
         """

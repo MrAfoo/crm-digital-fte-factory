@@ -369,6 +369,8 @@ async def _process_web_ticket(ticket_id: str, message: str, channel: str, custom
         reply = result.get("formatted_response") or result.get("response", "")
         escalated = result.get("escalated", False)
         sentiment = result.get("sentiment", "neutral")
+        logger.info(f"Agent result keys: {list(result.keys())}")
+        logger.info(f"Raw reply ({len(reply)} chars): {reply[:300]}")
 
         # Reject internal/tool summaries leaking into customer reply
         if _is_internal_reply(reply):

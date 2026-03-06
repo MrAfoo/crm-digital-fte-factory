@@ -243,19 +243,21 @@ class CustomerSuccessAgent:
                         # LLM says afterwards
                         if tool_name == "send_response" and "response_text" in tool_args:
                             captured = tool_args["response_text"].strip()
-                            # Reject generic/canned template messages
+                            logger.info(f"send_response captured ({len(captured)} chars): {captured[:200]}")
+                            # Reject only clearly canned/internal messages
                             generic_phrases = [
-                                "we have received your message",
                                 "a member of our support team will be in touch",
-                                "thank you for reaching out to novadesk",
                                 "cannot find specific solution",
-                                "let me investigate further",
                                 "need more help? chat with our team",
+                                "ticket created",
+                                "escalation initiated",
                             ]
                             is_generic = any(p in captured.lower() for p in generic_phrases)
-                            if not is_generic and len(captured) > 80:
+                            if not is_generic and len(captured) > 30:
                                 send_response_text = captured
-                                logger.info(f"Captured real send_response text ({len(captured)} chars)")
+                                logger.info(f"✅ Accepted send_response text")
+                            else:
+                                logger.warning(f"❌ Rejected send_response (generic={is_generic}, len={len(captured)})")
                         
                         result = await self._execute_tool(tool_name, tool_args)
                         
