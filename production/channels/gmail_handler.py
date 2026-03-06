@@ -171,6 +171,17 @@ class GmailHandler:
                 ).execute()
             )
 
+            # Get our own email address to filter out self-sent messages
+            our_email = os.getenv("GMAIL_USER_EMAIL", "")
+            if not our_email:
+                try:
+                    profile = await asyncio.to_thread(
+                        lambda: self.service.users().getProfile(userId='me').execute()
+                    )
+                    our_email = profile.get("emailAddress", "").lower()
+                except Exception:
+                    pass
+
             messages = []
             seen_ids = set()
             history_records = history.get('history', [])
@@ -181,13 +192,23 @@ class GmailHandler:
                     if msg_id in seen_ids:
                         continue
                     seen_ids.add(msg_id)
-                    # Only process INBOX messages (skip sent/drafts/spam)
-                    if 'INBOX' in labels or not labels:
-                        message = await self.get_message(msg_id)
-                        if message:
-                            messages.append(message)
-                    else:
+                    # Only process INBOX messages — skip SENT, DRAFT, SPAM, no-label
+                    if 'INBOX' not in labels:
                         logger.debug(f"Skipping {msg_id} — not INBOX (labels={labels})")
+                        continue
+                    # Skip messages sent by ourselves (prevent infinite loop)
+                    if 'SENT' in labels:
+                        logger.debug(f"Skipping {msg_id} — SENT by us")
+                        continue
+                    message = await self.get_message(msg_id)
+                    if not message:
+                        continue
+                    # Double-check: skip if from our own address
+                    sender = message.get("customer_email", "").lower()
+                    if our_email and sender == our_email:
+                        logger.info(f"Skipping {msg_id} — from ourselves ({sender})")
+                        continue
+                    messages.append(message)
 
             # Save current historyId as baseline for next notification
             GmailHandler._last_history_id = history_id
