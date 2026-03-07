@@ -21,7 +21,10 @@ WHATSAPP_API_URL = 'https://graph.facebook.com/v18.0'
 
 class WhatsAppHandler:
     """Handler for WhatsApp Cloud API channel integration."""
-    
+
+    # Class-level deduplication — track processed message IDs
+    _processed_ids: set = set()
+
     def __init__(self):
         """Initialize WhatsApp handler with credentials from environment."""
         self.whatsapp_token = os.getenv('WHATSAPP_TOKEN', '')
@@ -116,6 +119,18 @@ class WhatsAppHandler:
             message_id = message.get('id', '')
             from_phone = message.get('from', '')
             timestamp = message.get('timestamp', '')
+
+            # Deduplication — skip already-processed messages
+            if message_id and message_id in WhatsAppHandler._processed_ids:
+                logger.info(f"Skipping duplicate WhatsApp message: {message_id}")
+                return None
+            if message_id:
+                WhatsAppHandler._processed_ids.add(message_id)
+                # Keep set from growing unbounded — trim to last 1000
+                if len(WhatsAppHandler._processed_ids) > 1000:
+                    WhatsAppHandler._processed_ids = set(
+                        list(WhatsAppHandler._processed_ids)[-500:]
+                    )
             
             content = ''
             if message_type == 'text':

@@ -64,18 +64,25 @@ class ChannelFormatter:
         """
         Format response for WhatsApp channel.
         - Conversational tone
-        - Concise (truncate to 297 chars + '...' if needed)
-        - Emoji allowed sparingly
+        - Remove formal email signatures/greetings
+        - Remove any URLs/links (they may be hallucinated)
+        - Max 1600 chars (WhatsApp limit)
         """
-        # Remove formal signatures and greetings
         cleaned = self._strip_existing_greeting(response)
         cleaned = re.sub(r'Best regards,?\s*.*$', '', cleaned, flags=re.DOTALL).strip()
         cleaned = re.sub(r'Nova \| NovaDeskAI Support', '', cleaned).strip()
-        
-        # Truncate to limit
-        limit = CHANNEL_RESPONSE_LIMITS['whatsapp']
-        if len(cleaned) > limit:
-            return cleaned[:limit - 3] + '...'
+
+        # Remove any URLs — Nova may hallucinate links that don't exist
+        cleaned = re.sub(r'https?://\S+', '', cleaned).strip()
+        cleaned = re.sub(r'www\.\S+', '', cleaned).strip()
+
+        # Clean up extra spaces/newlines left by URL removal
+        cleaned = re.sub(r'\n{3,}', '\n\n', cleaned).strip()
+        cleaned = re.sub(r'  +', ' ', cleaned).strip()
+
+        # WhatsApp allows up to 4096 chars — use 1600 as practical limit
+        if len(cleaned) > 1600:
+            return cleaned[:1597] + '...'
         return cleaned
 
     def _format_web(self, response: str) -> str:
