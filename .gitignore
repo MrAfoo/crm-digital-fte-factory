@@ -1,6 +1,9 @@
 # Atlassian CLI (large binary/plugin folder)
 .acli/
 
+# Gmail history ID persistence file (auto-generated, local only)
+production/channels/.gmail_last_history_id
+
 # Environment variables
 .env
 .env.*

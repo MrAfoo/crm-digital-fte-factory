@@ -31,12 +31,33 @@ except ImportError:
     GMAIL_AVAILABLE = False
 
 
+_HISTORY_ID_FILE = os.path.join(os.path.dirname(__file__), ".gmail_last_history_id")
+
+def _load_last_history_id() -> str:
+    """Load persisted historyId from disk."""
+    try:
+        if os.path.exists(_HISTORY_ID_FILE):
+            val = open(_HISTORY_ID_FILE).read().strip()
+            if val.isdigit():
+                return val
+    except Exception:
+        pass
+    return None
+
+def _save_last_history_id(history_id: str):
+    """Persist historyId to disk so it survives API restarts."""
+    try:
+        with open(_HISTORY_ID_FILE, 'w') as f:
+            f.write(str(history_id))
+    except Exception as e:
+        logger.warning(f"Could not save historyId to disk: {e}")
+
+
 class GmailHandler:
     """Handler for Gmail channel integration."""
 
-    # Class-level last known historyId — persists across webhook calls within
-    # the same process lifetime so we never miss messages between notifications.
-    _last_history_id: str = None
+    # Class-level last known historyId — persisted to disk across restarts
+    _last_history_id: str = _load_last_history_id()
 
     def __init__(self, token_path: str = None):
         """Initialize Gmail handler with user token (oauth token, not app credentials)."""
@@ -210,8 +231,9 @@ class GmailHandler:
                         continue
                     messages.append(message)
 
-            # Save current historyId as baseline for next notification
+            # Save current historyId as baseline for next notification (persisted to disk)
             GmailHandler._last_history_id = history_id
+            _save_last_history_id(history_id)
             logger.info(f"Processed {len(messages)} new emails (historyId={history_id}, startId={start_id})")
             return messages
         except Exception as e:
