@@ -21,6 +21,40 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# ==================== Kafka Producer (optional) ====================
+
+_kafka_producer = None
+
+async def _kafka_publish(topic: str, event: dict):
+    """Publish an event to Kafka. Silently skips if Kafka is unavailable."""
+    global _kafka_producer
+    try:
+        if _kafka_producer is None:
+            try:
+                from aiokafka import AIOKafkaProducer
+                import json as _json
+                bootstrap = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
+                _kafka_producer = AIOKafkaProducer(
+                    bootstrap_servers=bootstrap,
+                    value_serializer=lambda v: _json.dumps(v).encode('utf-8'),
+                )
+                await _kafka_producer.start()
+                logger.info(f"Kafka producer connected to {bootstrap}")
+            except Exception as e:
+                logger.debug(f"Kafka not available — events will not be published: {e}")
+                _kafka_producer = False  # mark as unavailable so we don't retry
+                return
+
+        if _kafka_producer is False:
+            return
+
+        event["timestamp"] = datetime.now(timezone.utc).isoformat()
+        await _kafka_producer.send_and_wait(topic, event)
+        logger.debug(f"Kafka → {topic}: {list(event.keys())}")
+    except Exception as e:
+        logger.debug(f"Kafka publish error ({topic}): {e}")
+        _kafka_producer = None  # reset so next call retries connection
+
 # ==================== Pydantic Models ====================
 
 class ProcessMessageRequest(BaseModel):
@@ -398,6 +432,25 @@ async def _process_web_ticket(ticket_id: str, message: str, channel: str, custom
             tickets_db[ticket_id]["sentiment"] = sentiment
             tickets_db[ticket_id]["responded_at"] = datetime.now(timezone.utc).isoformat()
             logger.info(f"Nova replied to web ticket {ticket_id} (escalated={escalated})")
+
+        # Publish to Kafka
+        await _kafka_publish("fte.channels.webform.inbound", {
+            "ticket_id": ticket_id, "customer_id": customer_id,
+            "customer_name": customer_name, "customer_email": customer_email,
+            "subject": ticket_subject, "channel": channel,
+        })
+        await _kafka_publish("fte.tickets.incoming", {
+            "ticket_id": ticket_id, "channel": channel,
+            "customer_email": customer_email, "sentiment": sentiment,
+        })
+        if escalated:
+            await _kafka_publish("fte.escalations", {
+                "ticket_id": ticket_id, "customer_email": customer_email, "channel": channel,
+            })
+        await _kafka_publish("fte.metrics", {
+            "event": "ticket_resolved", "ticket_id": ticket_id,
+            "channel": channel, "escalated": escalated, "sentiment": sentiment,
+        })
     except Exception as e:
         logger.error(f"Agent error for web ticket {ticket_id}: {e}")
         if ticket_id in tickets_db:
@@ -597,6 +650,20 @@ async def whatsapp_webhook_receive(
                         else:
                             logger.info(f"✅ WhatsApp reply sent to {phone}")
                     logger.info(f"WhatsApp message processed for {customer_id}, escalated={result.get('escalated')}")
+                    # Kafka events
+                    await _kafka_publish("fte.channels.whatsapp.inbound", {
+                        "customer_id": customer_id, "phone": phone,
+                        "customer_name": customer_name, "message": msg.get("content", "")[:200],
+                    })
+                    await _kafka_publish("fte.tickets.incoming", {
+                        "channel": "whatsapp", "customer_id": customer_id, "sentiment": result.get("sentiment"),
+                    })
+                    if result.get("escalated"):
+                        await _kafka_publish("fte.escalations", {"customer_id": customer_id, "channel": "whatsapp"})
+                    if reply:
+                        await _kafka_publish("fte.channels.whatsapp.outbound", {
+                            "customer_id": customer_id, "phone": phone, "reply_preview": reply[:200],
+                        })
                 except Exception as e:
                     logger.error(f"Error processing WhatsApp message: {e}", exc_info=True)
 
@@ -651,6 +718,16 @@ async def gmail_webhook_receive(request: Request):
                         None,
                     )
                     logger.info(f"Gmail message processed for {customer_id}, escalated={result.get('escalated')}")
+                    # Kafka events
+                    await _kafka_publish("fte.channels.email.inbound", {
+                        "customer_id": customer_id, "customer_email": customer_email,
+                        "subject": normalized.get("subject", ""), "message": normalized.get("content", "")[:200],
+                    })
+                    await _kafka_publish("fte.tickets.incoming", {
+                        "channel": "email", "customer_id": customer_id, "sentiment": result.get("sentiment"),
+                    })
+                    if result.get("escalated"):
+                        await _kafka_publish("fte.escalations", {"customer_id": customer_id, "channel": "email"})
 
                     # ✅ Auto-reply back to customer via Gmail
                     reply = result.get("formatted_response") or result.get("response", "")
@@ -666,6 +743,10 @@ async def gmail_webhook_receive(request: Request):
                                     thread_id=normalized.get("thread_id"),
                                 )
                                 logger.info(f"✅ Auto-replied to {customer_email} via Gmail")
+                                await _kafka_publish("fte.channels.email.outbound", {
+                                    "customer_id": customer_id, "customer_email": customer_email,
+                                    "reply_preview": reply[:200],
+                                })
                             else:
                                 logger.warning(f"Gmail handler not available for auto-reply to {customer_email}")
                         except Exception as e:
