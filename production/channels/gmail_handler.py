@@ -248,9 +248,17 @@ class GmailHandler:
                         continue
                     messages.append(message)
 
-            # Save current historyId as baseline for next notification (persisted to disk)
-            GmailHandler._last_history_id = history_id
-            _save_last_history_id(history_id)
+            # Save the MAX of current and notification historyId as baseline
+            # so overlapping webhook deliveries don't reprocess the same messages
+            try:
+                new_id = str(max(
+                    int(GmailHandler._last_history_id or 0),
+                    int(history_id)
+                ))
+            except (ValueError, TypeError):
+                new_id = history_id
+            GmailHandler._last_history_id = new_id
+            _save_last_history_id(new_id)
             logger.info(f"Processed {len(messages)} new emails (historyId={history_id}, startId={start_id})")
             return messages
         except Exception as e:
