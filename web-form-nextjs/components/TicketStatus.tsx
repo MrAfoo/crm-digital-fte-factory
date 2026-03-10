@@ -218,7 +218,29 @@ export default function TicketStatus({ ticketId }: { ticketId: string }) {
             fontSize: 15, color: 'rgba(255,255,255,0.75)', lineHeight: 1.8,
             whiteSpace: 'pre-wrap',
           }}>
-            {ticket.nova_response}
+            {ticket.channel === 'email' ? (
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
+                <span style={{ fontSize: 32, lineHeight: 1 }}>📧</span>
+                <div>
+                  <div style={{ fontWeight: 700, color: '#34d399', marginBottom: 6, fontSize: 16 }}>
+                    Email sent to {ticket.email}
+                  </div>
+                  <div style={{ color: 'rgba(255,255,255,0.65)', lineHeight: 1.7 }}>
+                    We&apos;ve sent you an email showing how to solve your <strong style={{ color: 'rgba(255,255,255,0.85)' }}>{ticket.subject}</strong> problem. Please check your inbox (and spam folder just in case).
+                  </div>
+                  <div style={{
+                    marginTop: 14, display: 'inline-flex', alignItems: 'center', gap: 8,
+                    fontSize: 12, color: 'rgba(255,255,255,0.35)',
+                    background: 'rgba(52,211,153,0.07)', borderRadius: 8,
+                    padding: '6px 12px', border: '1px solid rgba(52,211,153,0.15)',
+                  }}>
+                    🤖 Warm regards, Nova — NovaDeskAI Support
+                  </div>
+                </div>
+              </div>
+            ) : (
+              ticket.nova_response
+            )}
           </div>
         </div>
       ) : (

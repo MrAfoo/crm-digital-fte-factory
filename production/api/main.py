@@ -117,6 +117,12 @@ metrics_collector = {
     "by_sentiment": {},
 }
 
+# ==================== Web-Form Email Allowlist ====================
+# Emails are added here when a customer submits the web form.
+# The Gmail webhook ONLY processes/replies to emails from this set.
+# This prevents random inbox emails from triggering the agent and burning tokens.
+_web_form_emails: set = set()
+
 
 # ==================== Lifespan Management ====================
 
@@ -433,6 +439,34 @@ async def _process_web_ticket(ticket_id: str, message: str, channel: str, custom
             tickets_db[ticket_id]["responded_at"] = datetime.now(timezone.utc).isoformat()
             logger.info(f"Nova replied to web ticket {ticket_id} (escalated={escalated})")
 
+        # If the customer chose Email as their channel, send Nova's reply directly to their inbox
+        if channel == "email" and customer_email and reply:
+            try:
+                from production.channels.gmail_handler import GmailHandler
+                gmail = GmailHandler()
+                if gmail.available:
+                    subject_line = f"Re: {ticket_subject}" if ticket_subject else "Your Support Request — NovaDeskAI"
+                    body = (
+                        f"Hi {customer_name},\n\n"
+                        f"{reply}\n\n"
+                        f"---\n"
+                        f"Ticket ID: {ticket_id}\n"
+                        f"If you need further help, simply reply to this email.\n"
+                        f"NovaDeskAI Support Team"
+                    )
+                    await gmail.send_new_email(
+                        to_email=customer_email,
+                        subject=subject_line,
+                        body=body,
+                    )
+                    logger.info(f"📧 Sent email reply to {customer_email} for ticket {ticket_id}")
+                    # Ensure their email stays in allowlist for follow-up replies
+                    _web_form_emails.add(customer_email.lower())
+                else:
+                    logger.warning(f"Gmail handler not available — could not email {customer_email}")
+            except Exception as e:
+                logger.error(f"Failed to send email reply for ticket {ticket_id}: {e}")
+
         # Publish to Kafka
         await _kafka_publish("fte.channels.webform.inbound", {
             "ticket_id": ticket_id, "customer_id": customer_id,
@@ -478,6 +512,10 @@ async def create_ticket(request: TicketCreateRequest, background_tasks: Backgrou
 
     tickets_db[ticket_id] = ticket
     logger.info(f"Created ticket {ticket_id} from {request.email}")
+
+    # Add this email to the allowlist so Gmail webhook can reply to them
+    _web_form_emails.add(request.email.lower())
+    logger.info(f"✅ Added {request.email} to web-form email allowlist")
 
     # Process with Nova agent in the background
     customer_id = f"web_{request.email.replace('@','_').replace('.','_')}"
@@ -707,6 +745,14 @@ async def gmail_webhook_receive(request: Request):
         
         # Process each normalized message through agent and auto-reply
         for normalized in normalized_list:
+            customer_email = normalized.get("customer_email", "").lower()
+
+            # 🔒 ALLOWLIST CHECK: Only reply to emails submitted via the web form.
+            # This prevents the agent from processing random inbox emails and burning tokens.
+            if customer_email not in _web_form_emails:
+                logger.info(f"📭 Skipping Gmail message from {customer_email} — not a web-form submitter")
+                continue
+
             if hasattr(app.state, "agent") and app.state.agent:
                 try:
                     customer_email = normalized.get("customer_email", "")
