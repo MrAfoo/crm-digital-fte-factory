@@ -238,14 +238,30 @@ class GmailHandler:
                     if our_email and sender == our_email:
                         logger.info(f"Skipping {msg_id} — from ourselves ({sender})")
                         continue
-                    # Skip system/automated emails (bounce notifications, mailer daemons etc)
+                    # Skip system/automated/newsletter emails
                     skip_senders = [
                         'mailer-daemon@', 'postmaster@', 'noreply@', 'no-reply@',
                         'notifications@', 'bounce@', 'auto-reply@', 'donotreply@',
+                        'do-not-reply@', 'newsletter@', 'marketing@', 'info@',
+                        'support@', 'hello@', 'team@', 'news@', 'updates@',
+                        'alert@', 'notify@', 'system@', 'feedback@',
                     ]
                     if any(s in sender for s in skip_senders):
-                        logger.info(f"Skipping {msg_id} — system/automated sender ({sender})")
+                        logger.info(f"Skipping {msg_id} — automated sender ({sender})")
                         continue
+
+                    # Skip newsletters/bulk emails by checking raw headers
+                    raw_headers = message.get("raw_headers", {})
+                    if (
+                        raw_headers.get("List-Unsubscribe") or
+                        raw_headers.get("List-ID") or
+                        raw_headers.get("Precedence") in ("bulk", "list", "junk") or
+                        raw_headers.get("X-Mailer") or
+                        raw_headers.get("X-Campaign-Id")
+                    ):
+                        logger.info(f"Skipping {msg_id} — newsletter/bulk email")
+                        continue
+
                     messages.append(message)
 
             # Save the MAX of current and notification historyId as baseline
@@ -281,16 +297,26 @@ class GmailHandler:
             
             headers = {h['name']: h['value'] for h in msg['payload'].get('headers', [])}
             body = self._extract_body(msg['payload'])
-            
+
+            # Headers used for newsletter/bulk detection
+            raw_headers = {
+                'List-Unsubscribe': headers.get('List-Unsubscribe', ''),
+                'List-ID':          headers.get('List-ID', ''),
+                'Precedence':       headers.get('Precedence', '').lower(),
+                'X-Mailer':         headers.get('X-Mailer', ''),
+                'X-Campaign-Id':    headers.get('X-Campaign-Id', ''),
+            }
+
             return {
                 'channel': 'email',
                 'channel_message_id': message_id,
                 'customer_email': self._extract_email(headers.get('From', '')),
-                'customer_name': headers.get('From', '').split('<')[0].strip(),
+                'customer_name': headers.get('From', '').split('<')[0].strip().strip('"'),
                 'subject': headers.get('Subject', ''),
                 'content': self._strip_quoted_text(body),
                 'received_at': datetime.now(timezone.utc).isoformat(),
                 'thread_id': msg.get('threadId'),
+                'raw_headers': raw_headers,
                 'metadata': {
                     'headers': headers,
                     'labels': msg.get('labelIds', [])
