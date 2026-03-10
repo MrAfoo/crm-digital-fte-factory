@@ -38,15 +38,15 @@ function Get-ListeningPid([int]$Port) {
 }
 
 function Stop-PortProcess([int]$Port) {
-    $pid = Get-ListeningPid $Port
-    if ($pid -and $pid -match '^\d+$') {
-        Write-Info "Freeing port $Port (PID $pid)..."
+    $procPid = Get-ListeningPid $Port
+    if ($procPid -and $procPid -match '^\d+$') {
+        Write-Info "Freeing port $Port (PID $procPid)..."
         try {
-            Stop-Process -Id ([int]$pid) -Force -ErrorAction Stop
+            Stop-Process -Id ([int]$procPid) -Force -ErrorAction Stop
             Start-Sleep -Seconds 1
             Write-Ok "Port $Port is free"
         } catch {
-            Write-WarnMsg "Could not stop PID $pid on port ${Port}: $($_.Exception.Message)"
+            Write-WarnMsg "Could not stop PID $procPid on port ${Port}: $($_.Exception.Message)"
         }
     }
 }
