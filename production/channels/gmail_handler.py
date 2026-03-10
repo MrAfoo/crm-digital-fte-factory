@@ -170,16 +170,25 @@ class GmailHandler:
                 return []
 
             # Determine startHistoryId:
-            # - Use the last processed historyId if we have one (most reliable)
-            # - Otherwise fall back to notification historyId - 100 as a safe window
-            # After processing, save the notification historyId as the new baseline.
+            # - Use the last processed historyId if we have one AND it's <= notification id
+            # - If persisted ID > notification ID (corrupted), reset and use notification id - 1
+            # - Otherwise fall back to notification historyId - 1 as safe minimum
             try:
+                notif_int = int(history_id)
                 if GmailHandler._last_history_id:
-                    start_id = GmailHandler._last_history_id
-                    logger.info(f"Using persisted startHistoryId={start_id}")
+                    persisted_int = int(GmailHandler._last_history_id)
+                    if persisted_int <= notif_int:
+                        start_id = GmailHandler._last_history_id
+                        logger.info(f"Using persisted startHistoryId={start_id}")
+                    else:
+                        # Persisted ID is ahead of notification — corrupted, reset
+                        logger.warning(f"Persisted historyId {persisted_int} > notification {notif_int} — resetting")
+                        start_id = str(notif_int - 1)
+                        GmailHandler._last_history_id = None
+                        _save_last_history_id(start_id)
                 else:
-                    start_id = str(max(1, int(history_id) - 100))
-                    logger.info(f"No persisted historyId, using fallback startId={start_id}")
+                    start_id = str(max(1, notif_int - 1))
+                    logger.info(f"No persisted historyId, using startId={start_id}")
             except (ValueError, TypeError):
                 start_id = history_id
 
@@ -228,6 +237,14 @@ class GmailHandler:
                     sender = message.get("customer_email", "").lower()
                     if our_email and sender == our_email:
                         logger.info(f"Skipping {msg_id} — from ourselves ({sender})")
+                        continue
+                    # Skip system/automated emails (bounce notifications, mailer daemons etc)
+                    skip_senders = [
+                        'mailer-daemon@', 'postmaster@', 'noreply@', 'no-reply@',
+                        'notifications@', 'bounce@', 'auto-reply@', 'donotreply@',
+                    ]
+                    if any(s in sender for s in skip_senders):
+                        logger.info(f"Skipping {msg_id} — system/automated sender ({sender})")
                         continue
                     messages.append(message)
 
